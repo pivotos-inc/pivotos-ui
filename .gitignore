@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-*/
+unpackage/
+*.local
+.idea/
+.vscode/
+.DS_Store
+.env
+.env.*
+!.env.example
+pnpm-debug.log*
