@@ -1,4 +1,4 @@
-import { reactive, ref } from 'vue';
+import { reactive, ref, type Ref } from 'vue';
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import type { PageQuery, PageResult } from '@pivotos/types';
 
@@ -21,7 +21,8 @@ export function createUseTablePage(request: AxiosInstance) {
     const { url, query, immediate = true, transform } = options;
 
     const loading = ref(false);
-    const rows = ref<T[]>([]) as { value: T[] };
+    // 显式标注为 Ref<T[]>：保留 Ref 品牌，模板中由 vue-tsc 自动拆包
+    const rows: Ref<T[]> = ref([]) as Ref<T[]>;
     const total = ref(0);
     const params = reactive({
       pageNum: 1,
