@@ -1,0 +1,19 @@
+{
+  "name": "pivotos-ui",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "dev": "pnpm --filter @pivotos/admin dev",
+    "build": "pnpm --filter @pivotos/admin build"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.0"
+  }
+}
