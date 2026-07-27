@@ -162,6 +162,8 @@ defineExpose({
             v-bind="s.props"
             @update:model-value="(v: unknown) => (modelValue[s.field] = v)"
           />
+          <!-- 自定义控件：同名插槽出口（如 #icon / #receiverIds） -->
+          <slot v-else-if="s.component === 'slot'" :name="s.field" :model="modelValue" />
         </ElFormItem>
       </ElCol>
       <!-- 业务侧追加表单项（如按钮组） -->
