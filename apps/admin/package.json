@@ -1,0 +1,33 @@
+{
+  "name": "@pivotos/admin",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@pivotos/components": "workspace:*",
+    "@pivotos/core": "workspace:*",
+    "@pivotos/types": "workspace:*",
+    "@pivotos/ui": "workspace:*",
+    "axios": "^1.10.0",
+    "element-plus": "^2.10.0",
+    "pinia": "^3.0.0",
+    "vue": "^3.5.0",
+    "vue-i18n": "^11.0.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "typescript": "~5.8.0",
+    "unocss": "^66.0.0",
+    "unplugin-vue-components": "^29.0.0",
+    "vite": "^7.0.0",
+    "vue-tsc": "^3.0.0"
+  }
+}
