@@ -4,9 +4,12 @@ import { ElButton, ElMessage, ElTableColumn } from 'element-plus';
 import { Promotion } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
+import { UserPicker } from '@pivotos/components';
+import type { UserPickerPage, UserPickerQuery } from '@pivotos/components';
 import type { MessageManageQuery, MessageManageVO, MessageSendRequest, TemplateVO } from '@pivotos/types';
 import { sendMessage } from '@/api/message/manage';
 import { listTemplates } from '@/api/message/template';
+import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -80,9 +83,8 @@ const sendSchemas = computed<YFormSchema[]>(() => [
   {
     field: 'receiverIds',
     label: '接收人',
-    component: 'input',
-    placeholder: '用户 ID，多个用英文逗号分隔',
-    rules: [{ required: true, message: '接收人不能为空', trigger: 'blur' }],
+    component: 'slot',
+    rules: [{ required: true, type: 'array', min: 1, message: '请选择接收人', trigger: 'change' }],
   },
   { field: 'bizType', label: '业务类型', component: 'input', placeholder: '可选' },
   { field: 'bizId', label: '业务ID', component: 'input', placeholder: '可选' },
@@ -99,15 +101,21 @@ async function openSend(): Promise<void> {
   sendVisible.value = true;
 }
 
+/** 接收人弹窗数据源：复用系统用户分页（方案 A，需 system:user:list 权限） */
+async function fetchReceiverPage(q: UserPickerQuery): Promise<UserPickerPage> {
+  const page = await pageUsers({ pageNum: q.pageNum, pageSize: q.pageSize, username: q.keyword || undefined });
+  return {
+    list: page.list.map((u) => ({ id: u.id, username: u.username, nickname: u.nickname })),
+    total: page.total,
+  };
+}
+
 async function handleSend(): Promise<void> {
   const valid = await sendFormRef.value?.validate()?.catch(() => false);
   if (!valid) return;
-  const receiverIds = String(sendModel.receiverIds ?? '')
-    .split(/[,，\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const receiverIds = (sendModel.receiverIds as string[] | undefined) ?? [];
   if (receiverIds.length === 0) {
-    ElMessage.warning('请填写接收人用户 ID');
+    ElMessage.warning('请选择接收人');
     return;
   }
   if (!sendModel.templateCode && (!sendModel.title || !sendModel.content)) {
@@ -173,7 +181,16 @@ async function handleSend(): Promise<void> {
       :confirm-loading="sendLoading"
       @confirm="handleSend"
     >
-      <YForm ref="sendFormRef" v-model="sendModel" :schemas="sendSchemas" label-width="90px" />
+      <YForm ref="sendFormRef" v-model="sendModel" :schemas="sendSchemas" label-width="90px">
+        <template #receiverIds="{ model }">
+          <UserPicker
+            :model-value="(model.receiverIds as string[] | undefined)"
+            :fetch-page="fetchReceiverPage"
+            placeholder="点击选择接收人"
+            @update:model-value="(v: string[] | undefined) => (model.receiverIds = v)"
+          />
+        </template>
+      </YForm>
     </YDialog>
   </div>
 </template>

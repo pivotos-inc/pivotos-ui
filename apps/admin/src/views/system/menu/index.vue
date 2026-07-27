@@ -4,11 +4,11 @@ import { ElButton, ElIcon, ElMessage, ElMessageBox, ElTableColumn } from 'elemen
 import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
-import { DictTag } from '@pivotos/components';
+import { DictTag, IconPicker } from '@pivotos/components';
 import type { MenuQuery, MenuSaveRequest, MenuVO } from '@pivotos/types';
 import { createMenu, deleteMenu, getMenu, treeMenus, updateMenu } from '@/api/system/menu';
 import { useDict } from '@/hooks';
-import { menuIcon } from '@/layout/icons';
+import { MENU_ICON_OPTIONS, menuIcon } from '@/layout/icons';
 
 const { sys_common_status, sys_show_hide } = useDict('sys_common_status', 'sys_show_hide');
 
@@ -110,7 +110,7 @@ const formSchemas = computed<YFormSchema[]>(() => {
   if (menuType.value !== 'F') {
     base.push(
       { field: 'path', label: '路由地址', component: 'input', placeholder: '目录以 / 开头，菜单为相对路径' },
-      { field: 'icon', label: '图标', component: 'input', placeholder: '如 setting / user / dict' },
+      { field: 'icon', label: '图标', component: 'slot' },
     );
   }
   if (menuType.value === 'C') {
@@ -271,7 +271,15 @@ async function handleDelete(row: MenuVO): Promise<void> {
       :confirm-loading="confirmLoading"
       @confirm="handleSubmit"
     >
-      <YForm ref="formRef" v-model="formModel" :schemas="formSchemas" label-width="90px" />
+      <YForm ref="formRef" v-model="formModel" :schemas="formSchemas" label-width="90px">
+        <template #icon="{ model }">
+          <IconPicker
+            :model-value="(model.icon as string | undefined)"
+            :icons="MENU_ICON_OPTIONS"
+            @update:model-value="(v: string | undefined) => (model.icon = v)"
+          />
+        </template>
+      </YForm>
     </YDialog>
   </div>
 </template>

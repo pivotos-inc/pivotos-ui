@@ -10,7 +10,12 @@ export type YFormComponentType =
   | 'checkbox'
   | 'switch'
   | 'date'
-  | 'daterange';
+  | 'daterange'
+  /**
+   * 自定义控件：业务侧通过同名插槽渲染，如 { component: 'slot', field: 'icon' }
+   * 对应 <template #icon="{ model }">，插槽内直接改 model 对象（同 v-model 约定）。
+   */
+  | 'slot';
 
 export interface YFormOption {
   label: string;
