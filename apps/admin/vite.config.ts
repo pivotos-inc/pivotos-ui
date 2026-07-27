@@ -26,7 +26,12 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         // 代理到后端 admin-server，避免跨域（见《04》第五节）
+        // 注意：按插件 API 前缀登记——新 Plugin（flow/file/job…）接入时各加一条
         '/system': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+        },
+        '/message': {
           target: env.VITE_API_BASE_URL || 'http://localhost:8080',
           changeOrigin: true,
         },
