@@ -7,7 +7,7 @@ import prettier from 'eslint-config-prettier';
 /** PivotOS Monorepo 统一 ESLint 配置（flat config，ESLint 9） */
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/.vite/**', '**/*.d.ts'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
