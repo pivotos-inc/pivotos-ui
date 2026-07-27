@@ -14,7 +14,7 @@ const { sys_common_status } = useDict('sys_common_status');
 // ---------- 树形列表（不分页） ----------
 const loading = ref(false);
 const tree = ref<DeptVO[]>([]);
-const query = reactive<DeptQuery>({ deptName: '', status: undefined });
+const query = reactive<DeptQuery>({ deptName: '', status: '' });
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -29,7 +29,7 @@ onMounted(load);
 
 function reset(): void {
   query.deptName = '';
-  query.status = undefined;
+  query.status = '';
   void load();
 }
 

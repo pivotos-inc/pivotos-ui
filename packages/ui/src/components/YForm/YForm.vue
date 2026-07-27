@@ -43,6 +43,18 @@ withDefaults(defineProps<Props>(), {
  */
 const formRef = ref<FormInstance>();
 
+/** 是否注入"请选择"空值项：select 单选且未显式关闭 */
+function showEmptyOption(s: YFormSchema): boolean {
+  if (s.component !== 'select') return false;
+  if ((s.props as Record<string, unknown> | undefined)?.multiple) return false;
+  return s.emptyOption !== false;
+}
+
+/** 空值项文案：emptyOption 为字符串时用之，否则默认"请选择" */
+function emptyOptionLabel(s: YFormSchema): string {
+  return typeof s.emptyOption === 'string' ? s.emptyOption : '请选择';
+}
+
 defineExpose({
   validate: () => formRef.value?.validate(),
   validateField: (field: string | string[]) => formRef.value?.validateField(field),
@@ -90,10 +102,11 @@ defineExpose({
             :model-value="(modelValue[s.field] as string | number | boolean | undefined)"
             :placeholder="s.placeholder"
             clearable
-            style="width: 100%"
+            style="width: 100%; min-width: 140px"
             v-bind="s.props"
             @update:model-value="(v: unknown) => (modelValue[s.field] = v)"
           >
+            <ElOption v-if="showEmptyOption(s)" :label="emptyOptionLabel(s)" value="" />
             <ElOption
               v-for="o in s.options ?? []"
               :key="String(o.value)"

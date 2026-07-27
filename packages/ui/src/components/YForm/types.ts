@@ -30,6 +30,12 @@ export interface YFormSchema {
   props?: Record<string, unknown>;
   /** select / radio / checkbox 的选项 */
   options?: YFormOption[];
+  /**
+   * select 顶部插入"请选择"空值项（value=''）并作为默认选中，默认 true。
+   * 传字符串可自定义文案（如 '全部'）；传 false 关闭（如必选场景不需要空值项）。
+   * multiple 多选时自动忽略。
+   */
+  emptyOption?: boolean | string;
   /** 单项校验规则（优先级高于顶层 rules） */
   rules?: FormItemRule[];
   /** 占位提示 */

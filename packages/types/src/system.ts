@@ -1,4 +1,4 @@
-import type { BaseVO, PageQuery } from './common';
+import type { BaseVO, Emptyable, PageQuery } from './common';
 
 /* ================= 用户 ================= */
 
@@ -8,7 +8,7 @@ export interface UserQuery extends PageQuery {
   nickname?: string;
   mobile?: string;
   deptId?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 用户新增/修改请求（对齐 UserSaveRequest；id 为空为新增，password 仅新增必填） */
@@ -48,7 +48,7 @@ export interface RoleVO extends BaseVO {
 export interface RoleQuery extends PageQuery {
   roleName?: string;
   roleCode?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 角色新增/修改请求（对齐 RoleSaveRequest） */
@@ -83,7 +83,7 @@ export interface MenuVO extends BaseVO {
 /** 菜单查询（对齐 MenuQuery，树形列表不分页） */
 export interface MenuQuery {
   menuName?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 菜单新增/修改请求（对齐 MenuSaveRequest） */
@@ -117,7 +117,7 @@ export interface DeptVO extends BaseVO {
 /** 部门查询（对齐 DeptQuery，树形列表不分页） */
 export interface DeptQuery {
   deptName?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 部门新增/修改请求（对齐 DeptSaveRequest） */
@@ -144,7 +144,7 @@ export interface DictTypeVO extends BaseVO {
 export interface DictTypeQuery extends PageQuery {
   dictName?: string;
   dictType?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 字典类型新增/修改请求（对齐 DictTypeSaveRequest） */
@@ -160,7 +160,7 @@ export interface DictTypeSaveRequest {
 export interface DictDataQuery extends PageQuery {
   dictType?: string;
   dictLabel?: string;
-  status?: number;
+  status?: Emptyable<number>;
 }
 
 /** 字典数据新增/修改请求（对齐 DictDataSaveRequest） */

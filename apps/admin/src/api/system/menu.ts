@@ -1,9 +1,17 @@
 import type { MenuQuery, MenuSaveRequest, MenuVO } from '@pivotos/types';
 import { request } from '../request';
 
+/** 剔除空值查询参数（'' 是查询表单"请选择"空值项，undefined/null 无意义） */
+function cleanParams(query?: MenuQuery): Record<string, unknown> | undefined {
+  if (!query) return undefined;
+  return Object.fromEntries(
+    Object.entries(query).filter(([, v]) => v !== '' && v !== undefined && v !== null),
+  );
+}
+
 /** 菜单树查询（不分页） */
 export function treeMenus(query?: MenuQuery): Promise<MenuVO[]> {
-  return request.get<unknown, MenuVO[]>('/system/menu/tree', { params: query });
+  return request.get<unknown, MenuVO[]>('/system/menu/tree', { params: cleanParams(query) });
 }
 
 /** 菜单详情 */
