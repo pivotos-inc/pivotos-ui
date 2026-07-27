@@ -1,0 +1,203 @@
+import type { BaseVO, PageQuery } from './common';
+
+/* ================= 用户 ================= */
+
+/** 用户分页查询（对齐 UserQuery） */
+export interface UserQuery extends PageQuery {
+  username?: string;
+  nickname?: string;
+  mobile?: string;
+  deptId?: string;
+  status?: number;
+}
+
+/** 用户新增/修改请求（对齐 UserSaveRequest；id 为空为新增，password 仅新增必填） */
+export interface UserSaveRequest {
+  id?: string;
+  username: string;
+  nickname: string;
+  password?: string;
+  deptId?: string;
+  email?: string;
+  mobile?: string;
+  gender?: number;
+  avatar?: string;
+  status?: number;
+  remark?: string;
+  roleIds?: string[];
+}
+
+/** 重置密码请求（对齐 ResetPasswordBody） */
+export interface ResetPasswordBody {
+  userId: string;
+  password: string;
+}
+
+/* ================= 角色 ================= */
+
+/** 角色视图对象（对齐 RoleVO） */
+export interface RoleVO extends BaseVO {
+  roleName: string;
+  roleCode: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+/** 角色分页查询（对齐 RoleQuery） */
+export interface RoleQuery extends PageQuery {
+  roleName?: string;
+  roleCode?: string;
+  status?: number;
+}
+
+/** 角色新增/修改请求（对齐 RoleSaveRequest） */
+export interface RoleSaveRequest {
+  id?: string;
+  roleName: string;
+  roleCode: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+  menuIds?: string[];
+}
+
+/* ================= 菜单 ================= */
+
+/** 菜单视图对象（对齐 MenuVO，children 用于树形返回） */
+export interface MenuVO extends BaseVO {
+  parentId: string;
+  menuName: string;
+  /** M目录 C菜单 F按钮 */
+  menuType: 'M' | 'C' | 'F';
+  path?: string;
+  component?: string;
+  perms?: string;
+  icon?: string;
+  sort?: number;
+  visible?: number;
+  status?: number;
+  children?: MenuVO[];
+}
+
+/** 菜单查询（对齐 MenuQuery，树形列表不分页） */
+export interface MenuQuery {
+  menuName?: string;
+  status?: number;
+}
+
+/** 菜单新增/修改请求（对齐 MenuSaveRequest） */
+export interface MenuSaveRequest {
+  id?: string;
+  parentId: string;
+  menuName: string;
+  menuType: 'M' | 'C' | 'F';
+  path?: string;
+  component?: string;
+  perms?: string;
+  icon?: string;
+  sort?: number;
+  visible?: number;
+  status?: number;
+}
+
+/* ================= 部门 ================= */
+
+/** 部门视图对象（对齐 DeptVO，children 用于树形返回） */
+export interface DeptVO extends BaseVO {
+  parentId: string;
+  deptName: string;
+  ancestors?: string;
+  leaderId?: string;
+  sort?: number;
+  status?: number;
+  children?: DeptVO[];
+}
+
+/** 部门查询（对齐 DeptQuery，树形列表不分页） */
+export interface DeptQuery {
+  deptName?: string;
+  status?: number;
+}
+
+/** 部门新增/修改请求（对齐 DeptSaveRequest） */
+export interface DeptSaveRequest {
+  id?: string;
+  parentId: string;
+  deptName: string;
+  leaderId?: string;
+  sort?: number;
+  status?: number;
+}
+
+/* ================= 字典 ================= */
+
+/** 字典类型视图对象（对齐 DictTypeVO） */
+export interface DictTypeVO extends BaseVO {
+  dictName: string;
+  dictType: string;
+  status?: number;
+  remark?: string;
+}
+
+/** 字典类型分页查询（对齐 DictTypeQuery） */
+export interface DictTypeQuery extends PageQuery {
+  dictName?: string;
+  dictType?: string;
+  status?: number;
+}
+
+/** 字典类型新增/修改请求（对齐 DictTypeSaveRequest） */
+export interface DictTypeSaveRequest {
+  id?: string;
+  dictName: string;
+  dictType: string;
+  status?: number;
+  remark?: string;
+}
+
+/** 字典数据分页查询（对齐 DictDataQuery） */
+export interface DictDataQuery extends PageQuery {
+  dictType?: string;
+  dictLabel?: string;
+  status?: number;
+}
+
+/** 字典数据新增/修改请求（对齐 DictDataSaveRequest） */
+export interface DictDataSaveRequest {
+  id?: string;
+  dictType: string;
+  dictLabel: string;
+  dictValue: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+/* ================= 参数配置 ================= */
+
+/** 参数配置视图对象（对齐 ConfigVO） */
+export interface ConfigVO extends BaseVO {
+  configName: string;
+  configKey: string;
+  configValue: string;
+  configType?: string;
+  remark?: string;
+}
+
+/** 参数配置分页查询（对齐 ConfigQuery） */
+export interface ConfigQuery extends PageQuery {
+  configName?: string;
+  configKey?: string;
+  configType?: string;
+}
+
+/** 参数配置新增/修改请求（对齐 ConfigSaveRequest） */
+export interface ConfigSaveRequest {
+  id?: string;
+  configName: string;
+  configKey: string;
+  configValue: string;
+  configType?: string;
+  remark?: string;
+}
