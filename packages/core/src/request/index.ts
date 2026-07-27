@@ -89,8 +89,8 @@ export function createRequest(options: CreateRequestOptions): AxiosInstance {
       return body.data;
     }
 
-    // 401：登录失效
-    if (body.code === 401) {
+    // 401 / 1002（GlobalErrorCode.UNAUTHORIZED）：登录失效
+    if (body.code === 401 || body.code === 1002) {
       handleUnauthorized();
     }
     if (!response.config.silent) onError?.(body.msg || '请求失败');

@@ -25,6 +25,8 @@ interface Props {
   stripe?: boolean;
   rowKey?: string;
   height?: string | number;
+  /** 树形表格默认展开全部 */
+  defaultExpandAll?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -38,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
   stripe: true,
   rowKey: undefined,
   height: undefined,
+  defaultExpandAll: false,
 });
 
 const emit = defineEmits<{
@@ -80,6 +83,7 @@ function handleSelectionChange(rows: Record<string, unknown>[]): void {
       :stripe="stripe"
       :row-key="rowKey"
       :height="height"
+      :default-expand-all="defaultExpandAll"
       @selection-change="handleSelectionChange"
     >
       <ElTableColumn
