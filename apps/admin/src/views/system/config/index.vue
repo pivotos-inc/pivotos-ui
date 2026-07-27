@@ -11,7 +11,7 @@ import { useTablePage } from '@/hooks';
 // ---------- 列表 ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<ConfigVO, ConfigQuery>({
   url: '/system/config/page',
-  query: { configName: '', configKey: '', configType: undefined },
+  query: { configName: '', configKey: '', configType: '' },
 });
 
 const CONFIG_TYPE_OPTIONS: YFormOption[] = [

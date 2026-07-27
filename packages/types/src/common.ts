@@ -13,6 +13,12 @@ export interface R<T = unknown> {
 /** 成功码 */
 export const SUCCESS_CODE = 0;
 
+/**
+ * 查询条件可空类型：'' 表示查询表单"请选择"空值项（未选择），
+ * useTablePage 发起请求前会将其与 undefined/null 一并剔除，不下发后端。
+ */
+export type Emptyable<T> = T | '';
+
 /** 分页查询参数（GET 拼 query） */
 export interface PageQuery {
   pageNum?: number;

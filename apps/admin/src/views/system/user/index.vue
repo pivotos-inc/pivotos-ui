@@ -45,7 +45,7 @@ onMounted(loadDeptTree);
 // ---------- 列表（分页 + 查询） ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<UserVO, UserQuery>({
   url: '/system/user/page',
-  query: { username: '', nickname: '', mobile: '', status: undefined },
+  query: { username: '', nickname: '', mobile: '', status: '' },
 });
 
 function handleDeptClick(node: DeptTreeNode): void {

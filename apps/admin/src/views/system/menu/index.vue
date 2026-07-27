@@ -15,7 +15,7 @@ const { sys_common_status, sys_show_hide } = useDict('sys_common_status', 'sys_s
 // ---------- 树形列表（不分页） ----------
 const loading = ref(false);
 const tree = ref<MenuVO[]>([]);
-const query = reactive<MenuQuery>({ menuName: '', status: undefined });
+const query = reactive<MenuQuery>({ menuName: '', status: '' });
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -30,7 +30,7 @@ onMounted(load);
 
 function reset(): void {
   query.menuName = '';
-  query.status = undefined;
+  query.status = '';
   void load();
 }
 

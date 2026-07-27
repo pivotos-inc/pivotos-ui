@@ -21,7 +21,7 @@ const { sys_common_status } = useDict('sys_common_status');
 // ---------- 列表 ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<RoleVO, RoleQuery>({
   url: '/system/role/page',
-  query: { roleName: '', roleCode: '', status: undefined },
+  query: { roleName: '', roleCode: '', status: '' },
 });
 
 const statusOptions = computed<YFormOption[]>(() =>

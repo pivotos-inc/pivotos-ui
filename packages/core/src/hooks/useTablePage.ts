@@ -33,8 +33,12 @@ export function createUseTablePage(request: AxiosInstance) {
     async function load(config?: AxiosRequestConfig): Promise<void> {
       loading.value = true;
       try {
+        // 空值参数（''/undefined/null）不下发：'' 是查询表单"请选择"空值项的选中值
+        const cleaned = Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null),
+        );
         const page = await request.get<unknown, PageResult<T>>(url, {
-          params,
+          params: cleaned,
           ...config,
         });
         rows.value = transform ? transform(page.list ?? []) : (page.list ?? []);
