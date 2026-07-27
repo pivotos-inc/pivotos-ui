@@ -12,6 +12,34 @@ importers:
         specifier: ~5.8.0
         version: 5.8.3
 
+  packages/components:
+    dependencies:
+      '@element-plus/icons-vue':
+        specifier: ^2.3.1
+        version: 2.3.2(vue@3.5.40(typescript@5.8.3))
+      '@pivotos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@pivotos/types':
+        specifier: workspace:*
+        version: link:../types
+      '@pivotos/ui':
+        specifier: workspace:*
+        version: link:../ui
+      element-plus:
+        specifier: ^2.10.0
+        version: 2.14.3(vue@3.5.40(typescript@5.8.3))
+    devDependencies:
+      typescript:
+        specifier: ~5.8.0
+        version: 5.8.3
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.40(typescript@5.8.3)
+      vue-tsc:
+        specifier: ^3.0.0
+        version: 3.3.8(typescript@5.8.3)
+
   packages/core:
     dependencies:
       '@pivotos/types':
