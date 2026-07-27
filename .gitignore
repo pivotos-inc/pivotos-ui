@@ -10,3 +10,4 @@ unpackage/
 .env.*
 !.env.example
 pnpm-debug.log*
+.vite/
