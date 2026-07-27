@@ -13,7 +13,7 @@ import { RepeatSubmitError, ServiceError } from './error';
  * 这样业务侧 request.get(url, { silent: true }) 不再报 TS2353。
  */
 declare module 'axios' {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
   interface AxiosRequestConfig<D = any> {
     /** 跳过 R 包装解析、直接返回 AxiosResponse（如下载流），默认 false */
     raw?: boolean;

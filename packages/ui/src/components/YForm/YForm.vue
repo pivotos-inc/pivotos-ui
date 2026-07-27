@@ -34,12 +34,13 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   labelWidth: '100px',
   inline: false,
+  rules: undefined,
 });
 
-const emit = defineEmits<{
-  'update:modelValue': [value: Record<string, unknown>];
-}>();
-
+/**
+ * 约定：YForm 直接改传入的 reactive 模型对象（v-model 约定见 eslint 规则说明），
+ * 因此不重复声明 update:modelValue emit。
+ */
 const formRef = ref<FormInstance>();
 
 defineExpose({

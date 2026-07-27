@@ -1,4 +1,4 @@
-<script setup lang="ts" generic="T extends Record<string, unknown> = Record<string, unknown>">
+<script setup lang="ts" generic="T = Record<string, unknown>">
 import { computed } from 'vue';
 import { ElPagination, ElTable, ElTableColumn } from 'element-plus';
 import { hasPermi } from '@pivotos/core';
@@ -36,6 +36,8 @@ const props = withDefaults(defineProps<Props>(), {
   hidePagination: false,
   border: true,
   stripe: true,
+  rowKey: undefined,
+  height: undefined,
 });
 
 const emit = defineEmits<{
@@ -51,6 +53,9 @@ const visibleColumns = computed(() =>
   props.columns.filter((col) => !col.perm || hasPermi(col.perm)),
 );
 
+/** ElTable 的 DefaultRow 约束较窄，这里做一次显式收窄 */
+const tableData = computed(() => props.data as Record<string, unknown>[]);
+
 function handleSizeChange(size: number): void {
   emit('update:pageSize', size);
   emit('refresh');
@@ -61,8 +66,8 @@ function handleCurrentChange(page: number): void {
   emit('refresh');
 }
 
-function handleSelectionChange(rows: T[]): void {
-  emit('selection-change', rows);
+function handleSelectionChange(rows: Record<string, unknown>[]): void {
+  emit('selection-change', rows as T[]);
 }
 </script>
 
@@ -70,7 +75,7 @@ function handleSelectionChange(rows: T[]): void {
   <div class="y-table">
     <ElTable
       v-loading="loading"
-      :data="data"
+      :data="tableData"
       :border="border"
       :stripe="stripe"
       :row-key="rowKey"
