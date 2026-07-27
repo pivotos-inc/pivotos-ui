@@ -1,51 +1,18 @@
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
+import { computed } from 'vue';
+import { ElConfigProvider } from 'element-plus';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
+import en from 'element-plus/es/locale/lang/en';
+import { useAppStore } from '@/stores/app';
 
-const { t } = useI18n();
+const appStore = useAppStore();
+
+/** Element Plus 组件文案跟随界面语言 */
+const epLocale = computed(() => (appStore.locale === 'en' ? en : zhCn));
 </script>
 
 <template>
-  <div class="app-shell">
-    <header class="app-shell__header">
-      <span class="app-shell__logo">PivotOS</span>
-      <span class="app-shell__title">{{ t('app.title') }}</span>
-    </header>
-    <main class="app-shell__main">
-      <RouterView />
-    </main>
-  </div>
+  <ElConfigProvider :locale="epLocale">
+    <RouterView />
+  </ElConfigProvider>
 </template>
-
-<style scoped>
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-shell__header {
-  height: var(--y-header-height);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 var(--y-content-padding);
-  background: var(--y-card-bg);
-  border-bottom: 1px solid var(--el-border-color-light);
-}
-
-.app-shell__logo {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.app-shell__title {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
-
-.app-shell__main {
-  flex: 1;
-  padding: var(--y-content-padding);
-}
-</style>
