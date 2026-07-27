@@ -41,8 +41,12 @@ export const constantRoutes: RouteRecordRaw[] = [
     meta: { title: '404', hidden: true },
   },
   {
+    // 兜底必须用组件直渲而非 redirect 到 /404：redirect 在守卫执行前就改写目标地址，
+    // 刷新动态路由页面（如 /system/menu）时原始地址丢失，守卫装配完路由也找不回
+    // 目标（S13 验收实测踩坑）。组件直渲保留 URL，守卫重放后动态路由即可命中。
     path: '/:pathMatch(.*)*',
-    redirect: '/404',
+    component: () => import('@/views/error/NotFound.vue'),
+    meta: { title: '404', hidden: true },
   },
 ];
 
