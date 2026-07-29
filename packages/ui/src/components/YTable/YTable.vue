@@ -11,8 +11,8 @@ interface Props {
   data: T[];
   /** 列定义 */
   columns: YTableColumn<T>[];
-  /** 总条数（分页） */
-  total?: number;
+  /** 总条数（分页）。后端为防 JS 大数精度丢失将 total 序列化为 String，这里同时接受 number/string */
+  total?: number | string;
   /** 当前页码（v-model:pageNum） */
   pageNum?: number;
   /** 每页条数（v-model:pageSize） */
@@ -58,6 +58,9 @@ const visibleColumns = computed(() =>
 
 /** ElTable 的 DefaultRow 约束较窄，这里做一次显式收窄 */
 const tableData = computed(() => props.data as Record<string, unknown>[]);
+
+/** total 可能为后端下发的 String，ElPagination 需要 Number，统一收窄避免 prop 类型告警 */
+const totalCount = computed(() => Number(props.total) || 0);
 
 function handleSizeChange(size: number): void {
   emit('update:pageSize', size);
@@ -113,7 +116,7 @@ function handleSelectionChange(rows: Record<string, unknown>[]): void {
       <ElPagination
         :current-page="pageNum"
         :page-size="pageSize"
-        :total="total"
+        :total="totalCount"
         :page-sizes="pageSizes"
         layout="total, sizes, prev, pager, next, jumper"
         background
