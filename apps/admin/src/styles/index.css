@@ -1,0 +1,6 @@
+/* admin 应用级样式（全局变量在 @pivotos/ui/styles） */
+.page-card {
+  background: var(--y-card-bg);
+  border-radius: var(--y-border-radius);
+  padding: var(--y-content-padding);
+}

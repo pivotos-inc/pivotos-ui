@@ -1,0 +1,27 @@
+/*
+ * PivotOS UI 样式单入口：宿主应用只需 `import '@pivotos/ui/styles'`。
+ * 当前为 EP 全量 CSS + 暗色 css-vars；P1 按需样式优化时保持本入口不变。
+ */
+@import 'element-plus/dist/index.css';
+@import 'element-plus/theme-chalk/dark/css-vars.css';
+
+:root {
+  /* PivotOS 品牌/布局变量（业务侧统一引用 --y-*，不直接写色值） */
+  --y-header-height: 56px;
+  --y-sidebar-width: 220px;
+  --y-sidebar-collapse-width: 64px;
+  --y-content-padding: 16px;
+  --y-page-bg: #f5f7fa;
+  --y-card-bg: #ffffff;
+  --y-border-radius: 6px;
+}
+
+html.dark {
+  --y-page-bg: #0d0d0f;
+  --y-card-bg: #141414;
+}
+
+body {
+  margin: 0;
+  background-color: var(--y-page-bg);
+}
