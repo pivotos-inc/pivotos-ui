@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue';
-import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox } from 'element-plus';
+import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
 import { ChatDotRound, Delete, Plus, Promotion } from '@element-plus/icons-vue';
-import type { AiChatMessageVO, AiConversationVO } from '@pivotos/types';
+import type { AiChatMessageVO, AiConversationVO, AiProviderOptionVO } from '@pivotos/types';
 import { deleteConversation, listConversations, listMessages, streamChat } from '@/api/ai/chat';
+import { listProviderModels, listProviderOptions } from '@/api/ai/provider';
 
 /** 本地消息（流式追加时 assistant 消息尚无落库 id） */
 interface LocalMessage {
@@ -52,6 +53,40 @@ async function handleDelete(row: AiConversationVO): Promise<void> {
   await loadConversations();
 }
 
+// ---------- 供应商 / 模型选择 ----------
+const providers = ref<AiProviderOptionVO[]>([]);
+/** 选中供应商 id，空串 = 默认（后端：默认供应商 → 静态配置兜底） */
+const providerId = ref('');
+const models = ref<string[]>([]);
+/** 选中模型，空串 = 供应商默认模型 */
+const model = ref('');
+const modelsLoading = ref(false);
+
+async function loadProviders(): Promise<void> {
+  try {
+    providers.value = await listProviderOptions();
+  } catch {
+    /* 供应商未配置不阻塞对话（走静态兜底） */
+  }
+}
+
+async function handleProviderChange(id: string): Promise<void> {
+  model.value = '';
+  models.value = [];
+  if (!id) return;
+  modelsLoading.value = true;
+  try {
+    models.value = await listProviderModels(id);
+    // 供应商默认模型在列表内则预选，否则留空走后端默认
+    const fallback = providers.value.find((p) => p.id === id)?.defaultModel ?? '';
+    model.value = models.value.includes(fallback) ? fallback : '';
+  } catch {
+    /* 5023 等错误已由请求层统一提示，下拉留空可手动重试 */
+  } finally {
+    modelsLoading.value = false;
+  }
+}
+
 // ---------- 流式对话 ----------
 const input = ref('');
 const streaming = ref(false);
@@ -69,7 +104,12 @@ async function handleSend(): Promise<void> {
   streaming.value = true;
   abortController = new AbortController();
   await streamChat(
-    { conversationId: activeId.value || undefined, content },
+    {
+      conversationId: activeId.value || undefined,
+      content,
+      providerId: providerId.value || undefined,
+      model: model.value || undefined,
+    },
     {
       onMeta(meta) {
         // 新会话：回填会话 id 并刷新左侧列表
@@ -122,7 +162,10 @@ function scrollToBottom(): void {
   });
 }
 
-onMounted(loadConversations);
+onMounted(() => {
+  void loadConversations();
+  void loadProviders();
+});
 </script>
 
 <template>
@@ -184,6 +227,31 @@ onMounted(loadConversations);
           @keydown="handleKeydown"
         />
         <div class="ai-chat__actions">
+          <div class="ai-chat__selectors">
+            <ElSelect
+              v-model="providerId"
+              class="ai-chat__selector"
+              size="small"
+              placeholder="默认供应商"
+              clearable
+              :disabled="streaming"
+              @change="handleProviderChange"
+            >
+              <ElOption v-for="p in providers" :key="p.id" :label="p.name" :value="p.id" />
+            </ElSelect>
+            <ElSelect
+              v-model="model"
+              class="ai-chat__selector ai-chat__selector--model"
+              size="small"
+              placeholder="默认模型"
+              clearable
+              filterable
+              :loading="modelsLoading"
+              :disabled="streaming || !providerId"
+            >
+              <ElOption v-for="m in models" :key="m" :label="m" :value="m" />
+            </ElSelect>
+          </div>
           <ElButton v-if="streaming" @click="handleStop">停止</ElButton>
           <ElButton type="primary" :icon="Promotion" :loading="streaming" :disabled="!input.trim()" @click="handleSend">
             发送
@@ -329,8 +397,24 @@ onMounted(loadConversations);
 
 .ai-chat__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* 供应商/模型下拉靠左，与发送按钮分列两端 */
+.ai-chat__selectors {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.ai-chat__selector {
+  width: 150px;
+}
+
+.ai-chat__selector--model {
+  width: 200px;
 }
 </style>

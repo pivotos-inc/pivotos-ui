@@ -22,6 +22,10 @@ export interface AiChatMessageVO {
 export interface AiChatSendBody {
   conversationId?: string;
   content: string;
+  /** 供应商 id（空 = 默认供应商 → 静态配置兜底） */
+  providerId?: string;
+  /** 模型名（空 = 供应商默认模型） */
+  model?: string;
 }
 
 /** SSE meta 事件载荷（流开始时下发会话与用户消息定位信息） */
@@ -35,4 +39,61 @@ export interface AiChatStreamMeta {
 export interface AiChatStreamDone {
   conversationId: string;
   messageId: string;
+}
+
+/* ================= AI 供应商配置 ================= */
+
+/** 供应商视图对象（对齐 ProviderVO，管理页） */
+export interface AiProviderVO {
+  id: string;
+  name: string;
+  code: string;
+  baseUrl: string;
+  defaultModel?: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+  /** 启用中的 Key 数 */
+  activeKeyCount?: string | number;
+  createTime?: string;
+  updateTime?: string;
+}
+
+/** 供应商下拉选项（对齐 ProviderOptionVO，对话页） */
+export interface AiProviderOptionVO {
+  id: string;
+  name: string;
+  defaultModel?: string;
+}
+
+/** API Key 视图对象（对齐 ApiKeyVO，keyMasked 只回尾 4 位） */
+export interface AiApiKeyVO {
+  id: string;
+  providerId: string;
+  label?: string;
+  keyMasked: string;
+  status?: number;
+  createTime?: string;
+  updateTime?: string;
+}
+
+/** 供应商保存请求（对齐 ProviderSaveRequest；id 为空新增） */
+export interface AiProviderSaveBody {
+  id?: string;
+  name: string;
+  code: string;
+  baseUrl: string;
+  defaultModel?: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+/** API Key 保存请求（对齐 ApiKeySaveRequest；修改时 apiKey 留空 = 不变更） */
+export interface AiApiKeySaveBody {
+  id?: string;
+  providerId: string;
+  label?: string;
+  apiKey?: string;
+  status?: number;
 }
