@@ -49,6 +49,15 @@ export default defineConfig(({ mode }) => {
             }
           },
         },
+        '/ai': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+          bypass(req) {
+            if (req.headers.accept?.includes('text/html')) {
+              return '/index.html';
+            }
+          },
+        },
       },
     },
   };

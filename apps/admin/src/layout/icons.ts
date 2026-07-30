@@ -30,6 +30,7 @@ import {
   List,
   Location,
   Lock,
+  MagicStick,
   Menu as MenuIcon,
   Message,
   MessageBox,
@@ -72,6 +73,7 @@ export interface MenuIconOption {
  * 新增图标在此登记后，菜单管理的图标选择弹窗自动出现。
  */
 export const MENU_ICON_OPTIONS: MenuIconOption[] = [
+  { name: 'ai', component: MagicStick },
   { name: 'setting', component: Setting },
   { name: 'user', component: User },
   { name: 'peoples', component: UserFilled },
