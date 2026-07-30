@@ -97,8 +97,10 @@ async function handleSend(): Promise<void> {
   if (!content || streaming.value) return;
   input.value = '';
   messages.value.push({ role: 'user', content });
-  const assistant: LocalMessage = { role: 'assistant', content: '' };
-  messages.value.push(assistant);
+  messages.value.push({ role: 'assistant', content: '' });
+  // 必须从响应式数组取回代理对象再累加：直接改 push 前的原始对象不经过
+  // reactive set 陷阱，delta 不触发重渲染，流结束才整段蹦出（S21 根因）
+  const assistant = messages.value[messages.value.length - 1]!;
   scrollToBottom();
 
   streaming.value = true;
