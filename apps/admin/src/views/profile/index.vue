@@ -80,7 +80,7 @@ async function handlePwdSubmit(): Promise<void> {
   <div class="profile-page">
     <div class="page-card profile-page__card">
       <div class="profile-page__head">
-        <ElAvatar :size="72" :src="info?.avatar" :icon="User" />
+        <ElAvatar :size="72" :src="userStore.avatar" :icon="User" />
         <div class="profile-page__identity">
           <h2 class="profile-page__nickname">{{ info?.nickname }}</h2>
           <div class="profile-page__roles">

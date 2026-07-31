@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { UserVO } from '@pivotos/types';
 import * as authApi from '@/api/system/auth';
+import { presignDownload } from '@/api/file';
 
 const TOKEN_KEY = 'pivotos-token';
 
@@ -33,6 +34,8 @@ interface UserState {
   perms: string[];
   /** 角色编码集合（超管为 ["super_admin"]） */
   roles: string[];
+  /** 头像展示 URL（presign-download 换取的限时 URL，落库 fileUrl 私有桶直连 403） */
+  avatarUrl: string;
 }
 
 /** 用户会话 store：Token / 用户信息 / 权限 / 角色 */
@@ -42,10 +45,11 @@ export const useUserStore = defineStore('user', {
     info: null,
     perms: [],
     roles: [],
+    avatarUrl: '',
   }),
   getters: {
     nickname: (state) => state.info?.nickname || state.info?.username || '',
-    avatar: (state) => state.info?.avatar || '',
+    avatar: (state) => state.avatarUrl,
   },
   actions: {
     /** 账号密码登录：拿 Token 并持久化 */
@@ -60,6 +64,19 @@ export const useUserStore = defineStore('user', {
       this.info = user;
       this.roles = roles ?? [];
       this.perms = perms ?? [];
+      void this.resolveAvatar(user?.avatar);
+    },
+    /** 头像换签：fileUrl → 限时可访问 URL（失败回落首字/图标占位，不阻断主流程） */
+    async resolveAvatar(avatar?: string): Promise<void> {
+      if (!avatar) {
+        this.avatarUrl = '';
+        return;
+      }
+      try {
+        this.avatarUrl = await presignDownload(avatar);
+      } catch {
+        this.avatarUrl = '';
+      }
     },
     /** 退出登录：通知后端 + 清理本地会话（动态路由由守卫侧负责移除） */
     async logout(): Promise<void> {
@@ -76,6 +93,7 @@ export const useUserStore = defineStore('user', {
       this.info = null;
       this.perms = [];
       this.roles = [];
+      this.avatarUrl = '';
       writeToken('');
     },
   },
