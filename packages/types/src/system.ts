@@ -201,3 +201,85 @@ export interface ConfigSaveRequest {
   configType?: string;
   remark?: string;
 }
+
+/* ================= 登录日志 ================= */
+
+/** 登录日志视图对象（对齐 LoginLogVO） */
+export interface LoginLogVO extends BaseVO {
+  username: string;
+  ip?: string;
+  userAgent?: string;
+  /** 0成功 1失败 */
+  status: number;
+  msg?: string;
+  loginTime: string;
+}
+
+/** 登录日志分页查询（对齐 LoginLogQuery） */
+export interface LoginLogQuery extends PageQuery {
+  username?: string;
+  ip?: string;
+  status?: Emptyable<number>;
+  beginTime?: string;
+  endTime?: string;
+}
+
+/* ================= 操作日志 ================= */
+
+/** 操作日志视图对象（对齐 OperLogVO） */
+export interface OperLogVO extends BaseVO {
+  module: string;
+  operType: string;
+  operName?: string;
+  operUserId?: string;
+  method?: string;
+  requestMethod?: string;
+  requestUrl?: string;
+  requestParams?: string;
+  /** 0成功 1失败 */
+  status: number;
+  errorMsg?: string;
+  duration?: number;
+  operTime: string;
+}
+
+/** 操作日志分页查询（对齐 OperLogQuery） */
+export interface OperLogQuery extends PageQuery {
+  module?: string;
+  operType?: string;
+  operName?: string;
+  status?: Emptyable<number>;
+  beginTime?: string;
+  endTime?: string;
+}
+
+/* ================= 通知公告 ================= */
+
+/** 通知公告视图对象（对齐 NoticeVO） */
+export interface NoticeVO extends BaseVO {
+  title: string;
+  /** 1通知 2公告 */
+  noticeType: number;
+  /** 富文本 HTML（列表接口不回吐，仅详情） */
+  content?: string;
+  /** 0草稿 1已发布 2已撤回 */
+  status: number;
+  publishTime?: string;
+  remark?: string;
+}
+
+/** 通知公告分页查询（对齐 NoticeQuery） */
+export interface NoticeQuery extends PageQuery {
+  title?: string;
+  noticeType?: Emptyable<number>;
+  status?: Emptyable<number>;
+}
+
+/** 通知公告新增/修改请求（对齐 NoticeSaveRequest） */
+export interface NoticeSaveRequest {
+  id?: string;
+  title: string;
+  noticeType: number;
+  content?: string;
+  remark?: string;
+}
