@@ -164,8 +164,17 @@ const keyColumns: YTableColumn<AiApiKeyVO>[] = [
   { prop: 'label', label: '备注名', minWidth: 120 },
   { prop: 'keyMasked', label: 'API Key', minWidth: 130 },
   { prop: 'status', label: '状态', width: 80, align: 'center', slot: 'status' },
+  { prop: 'failCount', label: '健康状态', width: 110, align: 'center', slot: 'health' },
   { prop: 'createTime', label: '创建时间', width: 170 },
 ];
+
+/** 健康状态文案：连续失败 0 次=正常；>0 且启用=异常；>0 且停用=已自动停用（达阈值被后端停用） */
+function keyHealth(row: AiApiKeyVO): { text: string; type: 'success' | 'warning' | 'danger' } {
+  const failCount = row.failCount ?? 0;
+  if (failCount === 0) return { text: '正常', type: 'success' };
+  if (row.status === 0) return { text: `连败 ${failCount} 次`, type: 'warning' };
+  return { text: `连败 ${failCount} 次·已停用`, type: 'danger' };
+}
 
 // Key 新增 / 编辑（编辑时 Key 明文留空 = 不变更，已存 Key 不可回看）
 const keyFormVisible = ref(false);
@@ -292,6 +301,11 @@ onMounted(load);
         <template #status="{ row }">
           <ElTag :type="(row as AiApiKeyVO).status === 0 ? 'success' : 'info'" size="small">
             {{ (row as AiApiKeyVO).status === 0 ? '启用' : '停用' }}
+          </ElTag>
+        </template>
+        <template #health="{ row }">
+          <ElTag :type="keyHealth(row as AiApiKeyVO).type" size="small">
+            {{ keyHealth(row as AiApiKeyVO).text }}
           </ElTag>
         </template>
         <ElTableColumn label="操作" width="120" align="center" fixed="right">

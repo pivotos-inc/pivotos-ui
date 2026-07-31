@@ -53,6 +53,8 @@ export interface AiProviderVO {
   sort?: number;
   status?: number;
   remark?: string;
+  /** 租户ID（'0'=平台/默认租户，区分平台配置与租户自有配置） */
+  tenantId?: string;
   /** 启用中的 Key 数 */
   activeKeyCount?: string | number;
   createTime?: string;
@@ -73,6 +75,8 @@ export interface AiApiKeyVO {
   label?: string;
   keyMasked: string;
   status?: number;
+  /** 连续失败次数（健康度：成功清零，达阈值自动停用） */
+  failCount?: number;
   createTime?: string;
   updateTime?: string;
 }
