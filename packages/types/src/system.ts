@@ -313,3 +313,18 @@ export interface NoticeSaveRequest {
   content?: string;
   remark?: string;
 }
+
+/* ================= 在线用户 ================= */
+
+/** 在线用户视图对象（对齐 OnlineUserVO） */
+export interface OnlineUserVO {
+  userId?: number;
+  username: string;
+  /** Token 掩码值，仅展示用 */
+  tokenValue: string;
+  /** Token 明文，不展示，供强退操作 */
+  rawToken: string;
+  ipAddr?: string;
+  loginTime?: string;
+  lastActiveTime?: string;
+}
