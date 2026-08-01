@@ -7,7 +7,9 @@ import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
 import { DeptTree, DictTag, YExcel } from '@pivotos/components';
 import type { DeptTreeNode, ImportResult } from '@pivotos/components';
 import type { DeptVO, RoleVO, UserQuery, UserSaveRequest, UserVO } from '@pivotos/types';
+import type { PostVO } from '@pivotos/types';
 import { treeDepts } from '@/api/system/dept';
+import { listPosts } from '@/api/system/post';
 import { listAllRoles } from '@/api/system/role';
 import {
   createUser,
@@ -16,6 +18,7 @@ import {
   exportUsers,
   getUser,
   importUsers,
+  importUsersStream,
   resetUserPassword,
   updateUser,
 } from '@/api/system/user';
@@ -48,7 +51,7 @@ onMounted(loadDeptTree);
 // ---------- 列表（分页 + 查询） ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<UserVO, UserQuery>({
   url: '/system/user/page',
-  query: { username: '', nickname: '', mobile: '', status: '' },
+  query: { username: '', nickname: '', mobile: '', postId: '', status: '' },
 });
 
 function handleDeptClick(node: DeptTreeNode): void {
@@ -68,6 +71,13 @@ const searchSchemas = computed<YFormSchema[]>(() => [
   { field: 'nickname', label: '昵称', component: 'input', placeholder: '按昵称模糊查询' },
   { field: 'mobile', label: '手机号', component: 'input', placeholder: '按手机号模糊查询' },
   {
+    field: 'postId',
+    label: '岗位',
+    component: 'select',
+    placeholder: '全部',
+    options: postOptions.value,
+  },
+  {
     field: 'status',
     label: '状态',
     component: 'select',
@@ -86,6 +96,15 @@ const columns: YTableColumn<UserVO>[] = [
     minWidth: 140,
     formatter: (row) => (row.deptId ? (deptNameMap.get(row.deptId) ?? '-') : '-'),
   },
+  {
+    prop: 'postId',
+    label: '岗位',
+    minWidth: 120,
+    formatter: (row) => {
+      const p = postOptions.value.find((o) => String(o.value) === String(row.postId));
+      return p ? p.label : '-';
+    },
+  },
   { prop: 'mobile', label: '手机号', width: 130 },
   { prop: 'status', label: '状态', width: 90, align: 'center', slot: 'status' },
   { prop: 'createTime', label: '创建时间', width: 170 },
@@ -99,9 +118,13 @@ const formModel = reactive<Record<string, unknown>>({});
 const isEdit = computed(() => !!formModel.id);
 
 const roleOptions = ref<YFormOption[]>([]);
+const postOptions = ref<YFormOption[]>([]);
 onMounted(async () => {
   const roles: RoleVO[] = await listAllRoles();
   roleOptions.value = roles.map((r) => ({ label: r.roleName, value: r.id }));
+
+  const posts: PostVO[] = await listPosts();
+  postOptions.value = posts.map((p) => ({ label: p.postName, value: p.id }));
 });
 
 /** 部门下拉选项（树拍平 + 缩进） */
@@ -152,6 +175,13 @@ const formSchemas = computed<YFormSchema[]>(() => [
     placeholder: '请选择部门',
     options: deptOptions.value,
   },
+  {
+    field: 'postId',
+    label: '岗位',
+    component: 'select',
+    placeholder: '请选择岗位',
+    options: postOptions.value,
+  },
   { field: 'email', label: '邮箱', component: 'input', placeholder: '请输入邮箱' },
   { field: 'mobile', label: '手机号', component: 'input', placeholder: '请输入手机号' },
   { field: 'gender', label: '性别', component: 'radio', options: genderOptions.value },
@@ -181,6 +211,7 @@ async function openEdit(row: UserVO): Promise<void> {
     username: detail.username,
     nickname: detail.nickname,
     deptId: detail.deptId,
+    postId: detail.postId,
     email: detail.email,
     mobile: detail.mobile,
     gender: detail.gender ?? 0,
@@ -202,6 +233,7 @@ async function handleSubmit(): Promise<void> {
       nickname: formModel.nickname as string,
       password: formModel.password as string | undefined,
       deptId: formModel.deptId as string | undefined,
+      postId: formModel.postId as string | undefined,
       email: formModel.email as string | undefined,
       mobile: formModel.mobile as string | undefined,
       gender: formModel.gender as number | undefined,
@@ -266,6 +298,7 @@ function exportQuery(): Record<string, unknown> {
   if (params.mobile) p.mobile = params.mobile;
   if (params.status !== '' && params.status !== undefined) p.status = params.status;
   if (params.deptId) p.deptId = params.deptId;
+  if (params.postId) p.postId = params.postId;
   return p;
 }
 
@@ -290,6 +323,7 @@ function handleImportSuccess(result: ImportResult): void {
         <YExcel
           :export-fn="exportUsers"
           :import-fn="importUsers"
+          :stream-import-fn="importUsersStream"
           :template-fn="downloadUserTemplate"
           :export-params="exportQuery()"
           export-filename="用户列表"

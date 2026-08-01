@@ -16,6 +16,7 @@ export interface UserVO extends BaseVO {
   username: string;
   nickname: string;
   deptId?: string;
+  postId?: string;
   email?: string;
   mobile?: string;
   gender?: number;
