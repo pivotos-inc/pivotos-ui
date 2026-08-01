@@ -344,3 +344,64 @@ export interface OnlineUserQuery extends PageQuery {
   username?: string;
   ip?: string;
 }
+
+/* ================= 代码生成器 ================= */
+
+/** 数据库表信息 */
+export interface DbTableVO {
+  tableName: string;
+  tableComment: string;
+  createTime: string;
+  updateTime: string;
+}
+
+/** 生成表信息 */
+export interface GenTableVO extends BaseVO {
+  tableName: string;
+  tableComment: string;
+  className: string;
+  packageName: string;
+  moduleName: string;
+  businessName: string;
+  functionName: string;
+  functionAuthor: string;
+  genType: string;
+  genPath?: string;
+  remark?: string;
+}
+
+/** 生成表字段信息 */
+export interface GenTableColumnVO {
+  id: string;
+  tableId: string;
+  columnName: string;
+  columnComment: string;
+  columnType: string;
+  javaType: string;
+  javaField: string;
+  isPk: number;
+  isIncrement: number;
+  isRequired: number;
+  isInsert: number;
+  isEdit: number;
+  isList: number;
+  isQuery: number;
+  queryType: string;
+  htmlType: string;
+  dictType: string;
+  sort: number;
+}
+
+/** 导入表请求 */
+export interface ImportTableRequest {
+  tableNames: string[];
+  packageName?: string;
+  moduleName?: string;
+  businessName?: string;
+  functionName?: string;
+  functionAuthor?: string;
+}
+
+/** 代码预览结果 */
+export type PreviewCodeResult = Record<string, string>;
+
