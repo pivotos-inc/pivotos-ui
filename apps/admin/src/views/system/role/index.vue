@@ -5,8 +5,9 @@ import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
 import { DictTag } from '@pivotos/components';
-import type { MenuVO, RoleQuery, RoleSaveRequest, RoleVO } from '@pivotos/types';
+import type { DeptVO, MenuVO, RoleQuery, RoleSaveRequest, RoleVO } from '@pivotos/types';
 import { treeMenus } from '@/api/system/menu';
+import { treeDepts } from '@/api/system/dept';
 import {
   createRole,
   deleteRole,
@@ -17,6 +18,15 @@ import {
 import { useDict, useTablePage } from '@/hooks';
 
 const { sys_common_status } = useDict('sys_common_status');
+
+/** 数据范围选项 */
+const dataScopeOptions: YFormOption[] = [
+  { label: '全部数据权限', value: 1 },
+  { label: '本部门', value: 2 },
+  { label: '本部门及以下', value: 3 },
+  { label: '仅本人', value: 4 },
+  { label: '自定义部门', value: 5 },
+];
 
 // ---------- 列表 ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<RoleVO, RoleQuery>({
@@ -54,6 +64,10 @@ interface MenuTreeNode {
 const menuTree = ref<MenuTreeNode[]>([]);
 const menuTreeRef = ref<InstanceType<typeof ElTree>>();
 
+/** 部门树（自定义数据范围） */
+const deptTreeData = ref<MenuTreeNode[]>([]);
+const deptTreeRef = ref<InstanceType<typeof ElTree>>();
+
 function toMenuNode(menu: MenuVO): MenuTreeNode {
   return {
     id: menu.id,
@@ -62,8 +76,17 @@ function toMenuNode(menu: MenuVO): MenuTreeNode {
   };
 }
 
+function toDeptNode(dept: DeptVO): MenuTreeNode {
+  return {
+    id: dept.id,
+    label: dept.deptName,
+    children: dept.children?.map(toDeptNode),
+  };
+}
+
 onMounted(async () => {
   menuTree.value = (await treeMenus()).map(toMenuNode);
+  deptTreeData.value = (await treeDepts({ status: 0 })).map(toDeptNode);
 });
 
 /** 叶子节点 ID 集合（回显时只 set 叶子，父级由半选态自动推导） */
@@ -108,8 +131,9 @@ const formSchemas = computed<YFormSchema[]>(() => [
 
 function openAdd(): void {
   Object.keys(formModel).forEach((k) => delete formModel[k]);
-  Object.assign(formModel, { status: 0, sort: 0 });
+  Object.assign(formModel, { status: 0, sort: 0, dataScope: 1 });
   dialogVisible.value = true;
+  window.setTimeout(() => deptTreeRef.value?.setCheckedKeys([]));
 }
 
 async function openEdit(row: RoleVO): Promise<void> {
@@ -121,6 +145,8 @@ async function openEdit(row: RoleVO): Promise<void> {
     roleCode: detail.roleCode,
     sort: detail.sort ?? 0,
     status: detail.status ?? 0,
+    dataScope: detail.dataScope ?? 1,
+    customDeptIds: detail.customDeptIds ?? '',
     remark: detail.remark,
   });
   dialogVisible.value = true;
@@ -128,6 +154,13 @@ async function openEdit(row: RoleVO): Promise<void> {
   const leaves = leafIds(menuTree.value);
   const checked = menuIds.filter((id) => leaves.has(String(id)));
   window.setTimeout(() => menuTreeRef.value?.setCheckedKeys(checked));
+  // 回显自定义部门勾选
+  if (detail.customDeptIds) {
+    const deptIds = detail.customDeptIds.split(',').filter(Boolean);
+    window.setTimeout(() => deptTreeRef.value?.setCheckedKeys(deptIds));
+  } else {
+    window.setTimeout(() => deptTreeRef.value?.setCheckedKeys([]));
+  }
 }
 
 async function handleSubmit(): Promise<void> {
@@ -137,12 +170,18 @@ async function handleSubmit(): Promise<void> {
   try {
     const checked = (menuTreeRef.value?.getCheckedKeys() ?? []).map(String);
     const half = (menuTreeRef.value?.getHalfCheckedKeys() ?? []).map(String);
+    // 自定义部门：叶子节点 + 半选父节点
+    const deptChecked = (deptTreeRef.value?.getCheckedKeys() ?? []).map(String);
+    const deptHalf = (deptTreeRef.value?.getHalfCheckedKeys() ?? []).map(String);
+    const allDeptIds = [...new Set([...deptHalf, ...deptChecked])].join(',');
     const body: RoleSaveRequest = {
       id: formModel.id as string | undefined,
       roleName: formModel.roleName as string,
       roleCode: formModel.roleCode as string,
       sort: formModel.sort as number | undefined,
       status: formModel.status as number | undefined,
+      dataScope: (formModel.dataScope as number) ?? 1,
+      customDeptIds: (formModel.dataScope as number) === 5 ? allDeptIds : undefined,
       remark: formModel.remark as string | undefined,
       menuIds: [...half, ...checked],
     };
@@ -215,6 +254,34 @@ async function handleDelete(row: RoleVO): Promise<void> {
       @confirm="handleSubmit"
     >
       <YForm ref="formRef" v-model="formModel" :schemas="formSchemas" label-width="90px" />
+      <!-- 数据范围配置 -->
+      <div class="role-page__scope">
+        <div class="role-page__scope-label">数据范围</div>
+        <YForm
+          v-model="formModel"
+          :schemas="[
+            {
+              field: 'dataScope',
+              component: 'radio',
+              options: dataScopeOptions,
+              rules: [{ required: true, message: '请选择数据范围', trigger: 'change' }],
+            } as YFormSchema,
+          ]"
+          label-width="0"
+        />
+      </div>
+      <div v-if="formModel.dataScope === 5" class="role-page__dept-section">
+        <div class="role-page__menus-label">自定义部门</div>
+        <ElTree
+          ref="deptTreeRef"
+          :data="deptTreeData"
+          :props="{ label: 'label', children: 'children' }"
+          node-key="id"
+          show-checkbox
+          default-expand-all
+          class="role-page__tree"
+        />
+      </div>
       <div class="role-page__menus">
         <div class="role-page__menus-label">菜单权限</div>
         <ElTree
@@ -238,6 +305,21 @@ async function handleDelete(row: RoleVO): Promise<void> {
   margin-bottom: 12px;
 }
 
+.role-page__scope {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.role-page__scope-label {
+  width: 90px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  line-height: 32px;
+  flex-shrink: 0;
+}
+
 .role-page__menus {
   display: flex;
   gap: 12px;
@@ -250,6 +332,12 @@ async function handleDelete(row: RoleVO): Promise<void> {
   color: var(--el-text-color-regular);
   line-height: 32px;
   flex-shrink: 0;
+}
+
+.role-page__dept-section {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .role-page__tree {
