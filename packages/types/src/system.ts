@@ -8,6 +8,7 @@ export interface UserQuery extends PageQuery {
   nickname?: string;
   mobile?: string;
   deptId?: string;
+  postId?: string;
   status?: Emptyable<number>;
 }
 
@@ -18,6 +19,7 @@ export interface UserSaveRequest {
   nickname: string;
   password?: string;
   deptId?: string;
+  postId?: string;
   email?: string;
   mobile?: string;
   gender?: number;
@@ -128,6 +130,34 @@ export interface DeptSaveRequest {
   leaderId?: string;
   sort?: number;
   status?: number;
+}
+
+/* ================= 岗位 ================= */
+
+/** 岗位视图对象（对齐 PostVO） */
+export interface PostVO extends BaseVO {
+  postCode: string;
+  postName: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
+}
+
+/** 岗位查询（对齐 PostQuery，不分页直接列表） */
+export interface PostQuery {
+  postCode?: string;
+  postName?: string;
+  status?: Emptyable<number>;
+}
+
+/** 岗位新增/修改请求（对齐 PostSaveRequest） */
+export interface PostSaveRequest {
+  id?: string;
+  postCode: string;
+  postName: string;
+  sort?: number;
+  status?: number;
+  remark?: string;
 }
 
 /* ================= 字典 ================= */
