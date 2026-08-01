@@ -17,3 +17,37 @@ export interface ImportResult<T = unknown> {
   successRows: T[];
   errors: ImportError[];
 }
+
+/** 流式导入单行事件（SSE row 事件格式） */
+export interface ImportStreamRow {
+  rowNum: number;
+  status: 'success' | 'error';
+  username: string;
+  message: string;
+}
+
+/** 流式导入完成事件 */
+export interface ImportStreamDone {
+  totalRows: number;
+  successCount: number;
+  errorCount: number;
+}
+
+/** 流式导入回调 */
+export interface ImportStreamCallbacks {
+  onRow: (row: ImportStreamRow) => void;
+  onDone: (result: ImportStreamDone) => void;
+  onError: (message: string) => void;
+}
+
+/**
+ * 流式导入函数签名：业务侧注入此函数，YExcel 负责展示实时结果。
+ * @param file 上传的 Excel 文件
+ * @param callbacks 逐行/完成/异常回调
+ * @param signal 用于前端取消操作
+ */
+export type ImportStreamFn = (
+  file: File,
+  callbacks: ImportStreamCallbacks,
+  signal: AbortSignal,
+) => Promise<void>;

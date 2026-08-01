@@ -79,9 +79,13 @@ export function createRequest(options: CreateRequestOptions): AxiosInstance {
   const onFulfilled = (response: AxiosResponse): unknown => {
     pending.delete(fingerprint(response.config));
 
-    // 二进制/原始响应直接放行
-    if (response.config.raw || response.config.responseType === 'blob') {
+    // raw: 返回完整 AxiosResponse（如 useDownload 需读取 headers）
+    if (response.config.raw) {
       return response;
+    }
+    // blob 响应：返回 Blob 本体（saveBlob / URL.createObjectURL 操作）
+    if (response.config.responseType === 'blob') {
+      return response.data;
     }
 
     const body = response.data as R;

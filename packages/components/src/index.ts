@@ -29,4 +29,4 @@ export { default as FileUpload } from './FileUpload/FileUpload.vue';
 
 // Excel 导入导出（注入业务侧 axios 调用，对接 starter-excel）
 export { default as YExcel } from './YExcel/YExcel.vue';
-export type { ImportResult, ImportError } from './YExcel/types';
+export type { ImportResult, ImportError, ImportStreamRow, ImportStreamDone, ImportStreamCallbacks, ImportStreamFn } from './YExcel/types';
