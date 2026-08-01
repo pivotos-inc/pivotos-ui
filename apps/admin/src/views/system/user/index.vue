@@ -4,15 +4,18 @@ import { ElButton, ElMessage, ElMessageBox, ElTableColumn } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
-import { DeptTree, DictTag } from '@pivotos/components';
-import type { DeptTreeNode } from '@pivotos/components';
+import { DeptTree, DictTag, YExcel } from '@pivotos/components';
+import type { DeptTreeNode, ImportResult } from '@pivotos/components';
 import type { DeptVO, RoleVO, UserQuery, UserSaveRequest, UserVO } from '@pivotos/types';
 import { treeDepts } from '@/api/system/dept';
 import { listAllRoles } from '@/api/system/role';
 import {
   createUser,
   deleteUser,
+  downloadUserTemplate,
+  exportUsers,
   getUser,
+  importUsers,
   resetUserPassword,
   updateUser,
 } from '@/api/system/user';
@@ -252,6 +255,25 @@ async function handleResetPwd(): Promise<void> {
     resetLoading.value = false;
   }
 }
+
+// ---------- Excel 导入导出（S27 2.1-F8/F9） ----------
+
+/** 将当前查询条件转为导出参数 */
+function exportQuery(): Record<string, unknown> {
+  const p: Record<string, unknown> = {};
+  if (params.username) p.username = params.username;
+  if (params.nickname) p.nickname = params.nickname;
+  if (params.mobile) p.mobile = params.mobile;
+  if (params.status !== '' && params.status !== undefined) p.status = params.status;
+  if (params.deptId) p.deptId = params.deptId;
+  return p;
+}
+
+function handleImportSuccess(result: ImportResult): void {
+  if (result.successRows.length > 0) {
+    void load();
+  }
+}
 </script>
 
 <template>
@@ -265,6 +287,14 @@ async function handleResetPwd(): Promise<void> {
         <ElButton v-hasPermi="'system:user:add'" type="primary" :icon="Plus" @click="openAdd">
           新增用户
         </ElButton>
+        <YExcel
+          :export-fn="exportUsers"
+          :import-fn="importUsers"
+          :template-fn="downloadUserTemplate"
+          :export-params="exportQuery()"
+          export-filename="用户列表"
+          @import-success="handleImportSuccess"
+        />
       </div>
 
       <YSearchForm v-model="params" :schemas="searchSchemas" @search="search" @reset="reset" />

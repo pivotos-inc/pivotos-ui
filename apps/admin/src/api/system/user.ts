@@ -36,3 +36,24 @@ export function deleteUser(id: string): Promise<void> {
 export function resetUserPassword(body: ResetPasswordBody): Promise<void> {
   return request.put<unknown, void>('/system/user/reset-password', body);
 }
+
+// ==================== Excel 导入导出（S27 2.1-F8/F9） ====================
+
+/** 导出用户 Excel（POST + 查询条件 + responseType: blob） */
+export function exportUsers(query: UserQuery): Promise<Blob> {
+  return request.post<unknown, Blob>('/system/user/export', query, { responseType: 'blob' });
+}
+
+/** 导入用户 Excel（FormData 上传文件） */
+export function importUsers(file: File): Promise<{ successRows: unknown[]; errors: Array<{ rowNum: number; message: string }> }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return request.post<unknown, { successRows: unknown[]; errors: Array<{ rowNum: number; message: string }> }>('/system/user/import', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
+/** 下载用户导入模板（GET + responseType: blob） */
+export function downloadUserTemplate(): Promise<Blob> {
+  return request.get<unknown, Blob>('/system/user/template', { responseType: 'blob' });
+}
