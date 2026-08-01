@@ -44,6 +44,10 @@ export interface RoleVO extends BaseVO {
   sort?: number;
   status?: number;
   remark?: string;
+  /** 数据范围：1全部 2本部门 3本部门及以下 4仅本人 5自定义 */
+  dataScope?: number;
+  /** 自定义部门ID集合（逗号分隔），dataScope=5时有效 */
+  customDeptIds?: string;
 }
 
 /** 角色分页查询（对齐 RoleQuery） */
@@ -62,6 +66,10 @@ export interface RoleSaveRequest {
   status?: number;
   remark?: string;
   menuIds?: string[];
+  /** 数据范围：1全部 2本部门 3本部门及以下 4仅本人 5自定义 */
+  dataScope?: number;
+  /** 自定义部门ID集合（逗号分隔），dataScope=5时有效 */
+  customDeptIds?: string;
 }
 
 /* ================= 菜单 ================= */
