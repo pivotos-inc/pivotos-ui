@@ -327,4 +327,12 @@ export interface OnlineUserVO {
   ipAddr?: string;
   loginTime?: string;
   lastActiveTime?: string;
+  /** Token 剩余有效期（秒），-1 表示持久 */
+  tokenTtl?: number;
+}
+
+/** 在线用户分页查询（对齐 OnlineUserQuery） */
+export interface OnlineUserQuery extends PageQuery {
+  username?: string;
+  ip?: string;
 }
