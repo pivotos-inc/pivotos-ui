@@ -405,3 +405,29 @@ export interface ImportTableRequest {
 /** 代码预览结果 */
 export type PreviewCodeResult = Record<string, string>;
 
+
+/* ================= 定时任务执行记录（S37） ================= */
+
+/** 任务执行记录视图对象（对齐 SysJobLog） */
+export interface JobLogVO {
+  id: string;
+  /** XXL-Job handler 名 */
+  jobHandler: string;
+  /** 结果（0成功 1失败） */
+  status: number;
+  /** 异常信息（失败时） */
+  errorMsg?: string;
+  /** 耗时（毫秒） */
+  duration?: number;
+  /** 执行时间 */
+  executeTime?: string;
+  createTime?: string;
+}
+
+/** 任务执行记录查询 */
+export interface JobLogQuery extends PageQuery {
+  jobHandler?: string;
+  status?: number | '';
+  beginTime?: string;
+  endTime?: string;
+}
