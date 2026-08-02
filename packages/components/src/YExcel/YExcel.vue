@@ -3,7 +3,7 @@ import { ref, computed, nextTick } from 'vue';
 import { ElButton, ElDialog, ElMessage, ElUpload, ElTable, ElTableColumn, ElTag } from 'element-plus';
 import { Download, Upload, List, Close } from '@element-plus/icons-vue';
 import type { UploadFile, UploadRawFile } from 'element-plus';
-import type { ImportError, ImportResult, ImportStreamFn, ImportStreamRow } from './types';
+import type { ImportError, ImportResult, ImportStreamDone, ImportStreamFn, ImportStreamRow } from './types';
 
 defineOptions({ name: 'YExcel' });
 
