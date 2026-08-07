@@ -210,9 +210,12 @@ onMounted(() => {
           </ElButton>
         </div>
         <YTable
+          v-model:page-num="dbTableParams.pageNum"
+          v-model:page-size="dbTableParams.pageSize"
           v-loading="dbTableLoading"
           :data="dbTableRows"
           :columns="dbTableColumns"
+          :total="dbTableTotal"
           row-key="tableName"
           @selection-change="handleDbTableSelect"
           @refresh="loadDbTables"
@@ -231,7 +234,16 @@ onMounted(() => {
           <ElInput v-model="genTableParams.tableName" placeholder="搜索表名" clearable style="width: 200px" @keyup.enter="loadGenTables" />
           <ElButton @click="loadGenTables">查询</ElButton>
         </div>
-        <YTable :loading="genTableLoading" :data="genTableRows" :columns="genTableColumns" row-key="id" @refresh="loadGenTables">
+        <YTable
+          v-model:page-num="genTableParams.pageNum"
+          v-model:page-size="genTableParams.pageSize"
+          :loading="genTableLoading"
+          :data="genTableRows"
+          :columns="genTableColumns"
+          :total="genTableTotal"
+          row-key="id"
+          @refresh="loadGenTables"
+        >
           <ElTableColumn label="操作" width="320" fixed="right">
             <template #default="{ row }">
               <ElButton link type="primary" @click="openPreview(row)">预览</ElButton>
