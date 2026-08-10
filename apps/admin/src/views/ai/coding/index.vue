@@ -8,6 +8,8 @@ import {
   ElInput,
   ElMessage,
   ElMessageBox,
+  ElRadioButton,
+  ElRadioGroup,
   ElTableColumn,
   ElTag,
 } from 'element-plus';
@@ -15,11 +17,13 @@ import { YTable } from '@pivotos/ui';
 import type { YTableColumn } from '@pivotos/ui';
 import type { CodingSessionVO } from '@pivotos/types';
 import { useTablePage } from '@/hooks';
-import { applyCodingSession, getCodingSession, parseCoding } from '@/api/ai/coding';
+import { applyCodingSession, getCodingSession, parseCoding, parseCodingPlugin } from '@/api/ai/coding';
 
 const router = useRouter();
 
 /* ================= 自然语言输入 ================= */
+type TaskType = 1 | 2;
+const taskType = ref<TaskType>(1);
 const description = ref('');
 const parsing = ref(false);
 
@@ -28,6 +32,17 @@ const EXAMPLES = [
   '生成一个商品管理功能，包含商品名称、价格、库存、上架状态',
   '帮我做合同管理，字段有合同编号、甲方、乙方、金额、签订日期',
 ];
+
+const PLUGIN_EXAMPLES = [
+  '做一个资产管理插件，管理固定资产台账与领用',
+  '做一个合同管理插件，跟踪合同签订与履约',
+  '做一个知识库插件，沉淀企业文档与经验',
+];
+
+const TASK_TYPE_MAP: Record<number, { label: string; type: 'primary' | 'success' }> = {
+  1: { label: '单表CRUD', type: 'primary' },
+  2: { label: 'Plugin骨架', type: 'success' },
+};
 
 const STATUS_MAP: Record<number, { label: string; type: 'info' | 'warning' | 'success' | 'danger' }> = {
   0: { label: '解析中', type: 'info' },
@@ -43,7 +58,8 @@ async function handleParse() {
   }
   parsing.value = true;
   try {
-    const session = await parseCoding({ description: description.value.trim() });
+    const body = { description: description.value.trim() };
+    const session = taskType.value === 2 ? await parseCodingPlugin(body) : await parseCoding(body);
     ElMessage.success('解析生成完成，请评审后确认应用');
     await loadSession(session.id);
     await search();
@@ -73,16 +89,19 @@ const applying = ref(false);
 
 async function handleApply() {
   if (!current.value?.id) return;
+  const isPlugin = current.value.taskType === 2;
   await ElMessageBox.confirm(
-    `确定将「${current.value.functionName || current.value.tableName}」的代码生成到工程吗？生成后需重启后端生效。`,
+    isPlugin
+      ? `确定将「${current.value.functionName || current.value.moduleName}」插件骨架落盘并登记装配吗？将新建双模块目录、登记 pom 与包扫描，应用后需全量构建并重启后端生效。`
+      : `确定将「${current.value.functionName || current.value.tableName}」的代码生成到工程吗？生成后需重启后端生效。`,
     '确认应用',
-    { confirmButtonText: '确定生成', type: 'warning' },
+    { confirmButtonText: isPlugin ? '确定落盘装配' : '确定生成', type: 'warning' },
   );
   applying.value = true;
   try {
     await applyCodingSession(current.value.id);
     current.value.status = 2;
-    ElMessage.success('已生成到工程，可在代码生成页继续管理');
+    ElMessage.success(isPlugin ? '骨架已落盘并登记装配，请全量构建后重启后端' : '已生成到工程，可在代码生成页继续管理');
     await search();
   } finally {
     applying.value = false;
@@ -100,6 +119,7 @@ const { loading, rows, total, params, load, search } = useTablePage<CodingSessio
 
 const columns: YTableColumn<CodingSessionVO>[] = [
   { type: 'index', label: '#', width: 56, align: 'center' },
+  { prop: 'taskType', label: '类型', width: 110, align: 'center', slot: 'taskType' },
   { prop: 'description', label: '业务描述', minWidth: 240, showOverflowTooltip: true },
   { prop: 'tableName', label: '表名', width: 160 },
   { prop: 'functionName', label: '功能名称', width: 140 },
@@ -112,18 +132,26 @@ const columns: YTableColumn<CodingSessionVO>[] = [
   <div class="page-card">
     <!-- 输入区 -->
     <div class="coding-input">
-      <div class="coding-input__title">用一句话描述你想要的业务功能，AI 帮你生成全套 CRUD 代码</div>
+      <div class="coding-input__head">
+        <div class="coding-input__title">
+          {{ taskType === 2 ? '用一句话描述你要的业务域，AI 帮你生成新 Plugin 双模块骨架' : '用一句话描述你想要的业务功能，AI 帮你生成全套 CRUD 代码' }}
+        </div>
+        <ElRadioGroup v-model="taskType" size="small">
+          <ElRadioButton :value="1">单表 CRUD</ElRadioButton>
+          <ElRadioButton :value="2">Plugin 骨架</ElRadioButton>
+        </ElRadioGroup>
+      </div>
       <ElInput
         v-model="description"
         type="textarea"
         :rows="3"
-        placeholder="例如：帮我给客户表生成增删改查，字段有姓名、手机号、备注"
+        :placeholder="taskType === 2 ? '例如：做一个资产管理插件，管理固定资产台账与领用' : '例如：帮我给客户表生成增删改查，字段有姓名、手机号、备注'"
       />
       <div class="coding-input__bar">
         <div class="coding-input__examples">
           <span class="coding-input__tip">试试：</span>
           <ElButton
-            v-for="ex in EXAMPLES"
+            v-for="ex in (taskType === 2 ? PLUGIN_EXAMPLES : EXAMPLES)"
             :key="ex"
             size="small"
             round
@@ -133,7 +161,7 @@ const columns: YTableColumn<CodingSessionVO>[] = [
           </ElButton>
         </div>
         <ElButton v-hasPermi="'ai:coding:parse'" type="primary" :loading="parsing" @click="handleParse">
-          {{ parsing ? 'AI 解析生成中（约 30 秒）…' : '生成代码' }}
+          {{ parsing ? 'AI 解析生成中（约 30 秒）…' : taskType === 2 ? '生成插件骨架' : '生成代码' }}
         </ElButton>
       </div>
     </div>
@@ -142,8 +170,16 @@ const columns: YTableColumn<CodingSessionVO>[] = [
     <div v-if="current" v-loading="detailLoading" class="coding-review">
       <div class="coding-review__head">
         <ElDescriptions :column="4" border size="small" style="flex: 1">
-          <ElDescriptionsItem label="模块名">{{ current.moduleName || '-' }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="表名">{{ current.tableName || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem label="任务类型">
+            <ElTag :type="TASK_TYPE_MAP[current.taskType ?? 1].type" disable-transitions>
+              {{ TASK_TYPE_MAP[current.taskType ?? 1].label }}
+            </ElTag>
+          </ElDescriptionsItem>
+          <ElDescriptionsItem :label="current.taskType === 2 ? '插件名' : '模块名'">{{ current.moduleName || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem v-if="current.taskType !== 2" label="表名">{{ current.tableName || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem v-if="current.taskType === 2" label="错误码段">
+            {{ current.extra?.errorCodeBase ?? '-' }}
+          </ElDescriptionsItem>
           <ElDescriptionsItem label="功能名称">{{ current.functionName || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="状态">
             <ElTag :type="STATUS_MAP[current.status ?? 0].type" disable-transitions>
@@ -159,9 +195,9 @@ const columns: YTableColumn<CodingSessionVO>[] = [
             :loading="applying"
             @click="handleApply"
           >
-            确认生成到工程
+            {{ current.taskType === 2 ? '确认落盘装配' : '确认生成到工程' }}
           </ElButton>
-          <ElButton v-if="current.status === 2" type="primary" @click="goGenerator">
+          <ElButton v-if="current.status === 2 && current.taskType !== 2" type="primary" @click="goGenerator">
             去代码生成页查看
           </ElButton>
         </div>
@@ -197,6 +233,11 @@ const columns: YTableColumn<CodingSessionVO>[] = [
         row-key="id"
         @refresh="load"
       >
+        <template #taskType="{ row }">
+          <ElTag :type="TASK_TYPE_MAP[(row as CodingSessionVO).taskType ?? 1].type" disable-transitions>
+            {{ TASK_TYPE_MAP[(row as CodingSessionVO).taskType ?? 1].label }}
+          </ElTag>
+        </template>
         <template #status="{ row }">
           <ElTag :type="STATUS_MAP[(row as CodingSessionVO).status ?? 0].type" disable-transitions>
             {{ STATUS_MAP[(row as CodingSessionVO).status ?? 0].label }}
@@ -220,10 +261,18 @@ const columns: YTableColumn<CodingSessionVO>[] = [
   margin: 12px;
 }
 
+.coding-input__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .coding-input__title {
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 12px;
 }
 
 .coding-input__bar {

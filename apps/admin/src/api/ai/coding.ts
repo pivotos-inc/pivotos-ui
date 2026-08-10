@@ -8,6 +8,11 @@ export function parseCoding(body: CodingParseBody) {
   return request.post<unknown, CodingSessionVO>(`${BASE}/parse`, body, { timeout: 120_000 });
 }
 
+/** Plugin 骨架生成（S42 / 2.2-F12，走 LLM，超时放宽到 120s） */
+export function parseCodingPlugin(body: CodingParseBody) {
+  return request.post<unknown, CodingSessionVO>(`${BASE}/plugin/parse`, body, { timeout: 120_000 });
+}
+
 /** 分页查询历史会话（列表视图，不含生成文件） */
 export function pageCodingSessions(params?: Record<string, unknown>) {
   return request.get<unknown, { list: CodingSessionVO[]; total: number }>(`${BASE}/session/page`, { params });

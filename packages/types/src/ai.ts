@@ -119,6 +119,10 @@ export interface CodingSessionVO {
   businessName?: string;
   /** 状态：0=解析中 1=待评审 2=已应用 3=失败 */
   status?: number;
+  /** 任务类型：1=单表CRUD 2=Plugin骨架 */
+  taskType?: number;
+  /** 任务类型特定参数（骨架：pluginName/errorCodeBase/tablePrefix/lintReport 等） */
+  extra?: Record<string, unknown>;
   /** 生成的文件列表（文件路径 → 文件内容），列表视图不下发 */
   generatedFiles?: Record<string, string>;
   createBy?: string;
