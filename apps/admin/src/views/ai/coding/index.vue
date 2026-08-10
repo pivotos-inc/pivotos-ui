@@ -132,7 +132,7 @@ const columns: YTableColumn<CodingSessionVO>[] = [
             {{ ex.length > 18 ? ex.slice(0, 18) + '…' : ex }}
           </ElButton>
         </div>
-        <ElButton type="primary" :loading="parsing" @click="handleParse">
+        <ElButton v-hasPermi="'ai:coding:parse'" type="primary" :loading="parsing" @click="handleParse">
           {{ parsing ? 'AI 解析生成中（约 30 秒）…' : '生成代码' }}
         </ElButton>
       </div>
@@ -154,6 +154,7 @@ const columns: YTableColumn<CodingSessionVO>[] = [
         <div class="coding-review__actions">
           <ElButton
             v-if="current.status === 1"
+            v-hasPermi="'ai:coding:apply'"
             type="warning"
             :loading="applying"
             @click="handleApply"
@@ -203,7 +204,7 @@ const columns: YTableColumn<CodingSessionVO>[] = [
         </template>
         <ElTableColumn label="操作" width="100" align="center" fixed="right">
           <template #default="{ row }">
-            <ElButton link type="primary" @click="loadSession((row as CodingSessionVO).id)">查看</ElButton>
+            <ElButton v-hasPermi="'ai:coding:list'" link type="primary" @click="loadSession((row as CodingSessionVO).id)">查看</ElButton>
           </template>
         </ElTableColumn>
       </YTable>
