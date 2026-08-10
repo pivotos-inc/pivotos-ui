@@ -1,6 +1,6 @@
 {
   "name": "@pivotos/admin",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,6 +15,8 @@
     "@pivotos/core": "workspace:*",
     "@pivotos/types": "workspace:*",
     "@pivotos/ui": "workspace:*",
+    "@wangeditor/editor": "^5.1.23",
+    "@wangeditor/editor-for-vue": "^5.1.12",
     "axios": "^1.10.0",
     "element-plus": "^2.10.0",
     "pinia": "^3.0.0",

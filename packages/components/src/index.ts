@@ -26,3 +26,7 @@ export type { IconPickerOption } from './IconPicker/types';
 
 // 文件上传（注入上传执行器，对接 file Starter 签名直传）
 export { default as FileUpload } from './FileUpload/FileUpload.vue';
+
+// Excel 导入导出（注入业务侧 axios 调用，对接 starter-excel）
+export { default as YExcel } from './YExcel/YExcel.vue';
+export type { ImportResult, ImportError, ImportStreamRow, ImportStreamDone, ImportStreamCallbacks, ImportStreamFn } from './YExcel/types';

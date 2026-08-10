@@ -1,0 +1,24 @@
+import type { CodingParseBody, CodingSessionVO } from '@pivotos/types';
+import { request } from '../request';
+
+const BASE = '/ai-coding';
+
+/** 自然语言解析 + 代码生成预览（走 LLM，耗时较长，超时放宽到 120s） */
+export function parseCoding(body: CodingParseBody) {
+  return request.post<unknown, CodingSessionVO>(`${BASE}/parse`, body, { timeout: 120_000 });
+}
+
+/** 分页查询历史会话（列表视图，不含生成文件） */
+export function pageCodingSessions(params?: Record<string, unknown>) {
+  return request.get<unknown, { list: CodingSessionVO[]; total: number }>(`${BASE}/session/page`, { params });
+}
+
+/** 查询会话详情（含生成文件） */
+export function getCodingSession(id: string) {
+  return request.get<unknown, CodingSessionVO>(`${BASE}/session/${id}`);
+}
+
+/** 确认应用：生成代码写入工程 */
+export function applyCodingSession(id: string) {
+  return request.post<unknown, void>(`${BASE}/session/${id}/apply`);
+}

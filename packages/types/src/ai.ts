@@ -101,3 +101,31 @@ export interface AiApiKeySaveBody {
   apiKey?: string;
   status?: number;
 }
+
+/* ================= AI Coding ================= */
+
+/** AI Coding 会话视图对象（对齐 CodingSessionVO） */
+export interface CodingSessionVO {
+  id: string;
+  /** 用户自然语言描述 */
+  description?: string;
+  /** 解析结果：模块名 */
+  moduleName?: string;
+  /** 解析结果：表名 */
+  tableName?: string;
+  /** 解析结果：功能名称 */
+  functionName?: string;
+  /** 解析结果：业务名 */
+  businessName?: string;
+  /** 状态：0=解析中 1=待评审 2=已应用 3=失败 */
+  status?: number;
+  /** 生成的文件列表（文件路径 → 文件内容），列表视图不下发 */
+  generatedFiles?: Record<string, string>;
+  createBy?: string;
+  createTime?: string;
+}
+
+/** AI Coding 解析请求体（对齐 CodingRequest） */
+export interface CodingParseBody {
+  description: string;
+}

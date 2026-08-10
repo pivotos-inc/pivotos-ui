@@ -18,8 +18,14 @@ export const constantRoutes: RouteRecordRaw[] = [
   {
     path: '/',
     component: Layout,
-    redirect: '/profile',
+    redirect: '/home',
     children: [
+      {
+        path: 'home',
+        name: 'Home',
+        component: () => import('@/views/home/index.vue'),
+        meta: { title: '首页', hidden: true },
+      },
       {
         path: 'profile',
         name: 'Profile',

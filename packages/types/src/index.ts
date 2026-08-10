@@ -5,3 +5,4 @@ export * from './dict';
 export * from './system';
 export * from './message';
 export * from './ai';
+export * from './file';

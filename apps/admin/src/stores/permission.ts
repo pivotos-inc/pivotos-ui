@@ -29,23 +29,6 @@ function transform(routerVO: RouterVO): RouteRecordRaw {
   return record as RouteRecordRaw;
 }
 
-/** 取第一条可见叶子路由的全路径，作为登录后首页落点 */
-function firstVisiblePath(routes: RouteRecordRaw[], parent = ''): string {
-  for (const route of routes) {
-    if (route.meta?.hidden) continue;
-    const full = route.path.startsWith('/')
-      ? route.path
-      : `${parent.replace(/\/$/, '')}/${route.path}`;
-    if (route.children?.length) {
-      const child = firstVisiblePath(route.children, full);
-      if (child) return child;
-    } else {
-      return full;
-    }
-  }
-  return '';
-}
-
 interface PermissionState {
   /** 动态路由是否已装配 */
   loaded: boolean;
@@ -65,9 +48,9 @@ export const usePermissionStore = defineStore('permission', {
   getters: {
     /** 侧边栏完整路由源 = 动态路由 + 常量路由中挂 Layout 的部分（个人中心等隐藏页不进菜单） */
     sidebarRoutes: (state) => state.routes,
-    /** 登录后首页落点 */
+    /** 登录后首页落点：常驻首页（公告卡片，S26），登录即可访问不依赖菜单权限 */
     homePath(): string {
-      return firstVisiblePath(this.routes) || '/profile';
+      return '/home';
     },
   },
   actions: {
