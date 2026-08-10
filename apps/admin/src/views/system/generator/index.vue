@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElButton, ElInput, ElMessage, ElMessageBox, ElSwitch, ElTableColumn, ElTabPane, ElTabs } from 'element-plus';
 import { YTable, YForm, YDialog } from '@pivotos/ui';
+import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import type { GenTableColumnVO, GenTableVO, DbTableVO } from '@pivotos/types';
 import {
   listDbTables,
@@ -19,7 +20,6 @@ import {
 /* ================= 导入配置 ================= */
 const importDialogVisible = ref(false);
 const importLoading = ref(false);
-const importFormRef = ref();
 const importFormModel = reactive({
   tableNames: [] as string[],
   packageName: 'com.pivotos.system',
@@ -29,12 +29,12 @@ const importFormModel = reactive({
   functionAuthor: 'PivotOS',
   tableComment: '',
 });
-const importSchemas = computed(() => [
-  { prop: 'packageName', label: '父包名', component: 'el-input', placeholder: 'com.pivotos.system' },
-  { prop: 'moduleName', label: '模块名', component: 'el-input', placeholder: 'system' },
-  { prop: 'businessName', label: '业务名', component: 'el-input', placeholder: '业务标识（英文）' },
-  { prop: 'functionName', label: '功能名称', component: 'el-input', placeholder: '功能描述（中文）' },
-  { prop: 'functionAuthor', label: '生成作者', component: 'el-input', placeholder: 'PivotOS' },
+const importSchemas = computed<YFormSchema[]>(() => [
+  { field: 'packageName', label: '父包名', component: 'input', placeholder: 'com.pivotos.system' },
+  { field: 'moduleName', label: '模块名', component: 'input', placeholder: 'system' },
+  { field: 'businessName', label: '业务名', component: 'input', placeholder: '业务标识（英文）' },
+  { field: 'functionName', label: '功能名称', component: 'input', placeholder: '功能描述（中文）' },
+  { field: 'functionAuthor', label: '生成作者', component: 'input', placeholder: 'PivotOS' },
 ]);
 
 /* ================= DB 表列表 ================= */
@@ -154,6 +154,14 @@ const columnLoading = ref(false);
 const currentTableId = ref('');
 const columns = ref<GenTableColumnVO[]>([]);
 
+/** 字段配置弹窗 YTable 只读列（交互列走模板内联 ElTableColumn） */
+const columnBaseColumns: YTableColumn<GenTableColumnVO>[] = [
+  { prop: 'columnName', label: '列名', width: 140 },
+  { prop: 'columnComment', label: '描述', width: 120 },
+  { prop: 'javaType', label: 'Java类型', width: 100 },
+  { prop: 'javaField', label: '字段名', width: 120 },
+];
+
 async function openColumns(row: GenTableVO) {
   currentTableId.value = row.id;
   columnDialogVisible.value = true;
@@ -222,7 +230,7 @@ onMounted(() => {
         />
         <!-- import dialog -->
         <YDialog v-model="importDialogVisible" title="导入表配置" width="520px" :confirm-loading="importLoading" @confirm="handleImport">
-          <YForm ref="importFormRef" v-model="importFormModel" :schemas="importSchemas" :label-width="'100px'" />
+          <YForm v-model="importFormModel" :schemas="importSchemas" :label-width="'100px'" />
           <div style="margin-top: 12px; color: #909399; font-size: 13px">
             已选表：{{ importFormModel.tableNames.join(', ') }}
           </div>
@@ -246,12 +254,12 @@ onMounted(() => {
         >
           <ElTableColumn label="操作" width="320" fixed="right">
             <template #default="{ row }">
-              <ElButton link type="primary" @click="openPreview(row)">预览</ElButton>
-              <ElButton link type="primary" @click="openColumns(row)">字段</ElButton>
-              <ElButton link type="success" @click="handleSynch(row)">同步</ElButton>
-              <ElButton link type="primary" @click="handleDownload(row)">下载</ElButton>
-              <ElButton link type="warning" @click="handleGenerate(row)">生成</ElButton>
-              <ElButton link type="danger" @click="handleDelete(row)">删除</ElButton>
+              <ElButton link type="primary" @click="openPreview(row as GenTableVO)">预览</ElButton>
+              <ElButton link type="primary" @click="openColumns(row as GenTableVO)">字段</ElButton>
+              <ElButton link type="success" @click="handleSynch(row as GenTableVO)">同步</ElButton>
+              <ElButton link type="primary" @click="handleDownload(row as GenTableVO)">下载</ElButton>
+              <ElButton link type="warning" @click="handleGenerate(row as GenTableVO)">生成</ElButton>
+              <ElButton link type="danger" @click="handleDelete(row as GenTableVO)">删除</ElButton>
             </template>
           </ElTableColumn>
         </YTable>
@@ -260,49 +268,45 @@ onMounted(() => {
 
     <!-- 字段配置弹窗 -->
     <YDialog v-model="columnDialogVisible" title="字段配置" width="900px">
-      <YTable v-loading="columnLoading" :data="columns" row-key="id">
-        <ElTableColumn prop="columnName" label="列名" width="140" />
-        <ElTableColumn prop="columnComment" label="描述" width="120" />
-        <ElTableColumn prop="javaType" label="Java类型" width="100" />
-        <ElTableColumn prop="javaField" label="字段名" width="120" />
+      <YTable v-loading="columnLoading" :data="columns" :columns="columnBaseColumns" row-key="id">
         <ElTableColumn label="列表" width="65">
           <template #default="{ row }">
-            <ElSwitch :model-value="row.isList === 1" size="small" @change="(v: boolean) => handleColumnUpdate(row, 'isList', v ? 1 : 0)" />
+            <ElSwitch :model-value="(row as GenTableColumnVO).isList === 1" size="small" @change="(v: string | number | boolean) => handleColumnUpdate(row as GenTableColumnVO, 'isList', v ? 1 : 0)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="查询" width="65">
           <template #default="{ row }">
-            <ElSwitch :model-value="row.isQuery === 1" size="small" @change="(v: boolean) => handleColumnUpdate(row, 'isQuery', v ? 1 : 0)" />
+            <ElSwitch :model-value="(row as GenTableColumnVO).isQuery === 1" size="small" @change="(v: string | number | boolean) => handleColumnUpdate(row as GenTableColumnVO, 'isQuery', v ? 1 : 0)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="新增" width="65">
           <template #default="{ row }">
-            <ElSwitch :model-value="row.isInsert === 1" size="small" @change="(v: boolean) => handleColumnUpdate(row, 'isInsert', v ? 1 : 0)" />
+            <ElSwitch :model-value="(row as GenTableColumnVO).isInsert === 1" size="small" @change="(v: string | number | boolean) => handleColumnUpdate(row as GenTableColumnVO, 'isInsert', v ? 1 : 0)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="编辑" width="65">
           <template #default="{ row }">
-            <ElSwitch :model-value="row.isEdit === 1" size="small" @change="(v: boolean) => handleColumnUpdate(row, 'isEdit', v ? 1 : 0)" />
+            <ElSwitch :model-value="(row as GenTableColumnVO).isEdit === 1" size="small" @change="(v: string | number | boolean) => handleColumnUpdate(row as GenTableColumnVO, 'isEdit', v ? 1 : 0)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="必填" width="65">
           <template #default="{ row }">
-            <ElSwitch :model-value="row.isRequired === 1" size="small" @change="(v: boolean) => handleColumnUpdate(row, 'isRequired', v ? 1 : 0)" />
+            <ElSwitch :model-value="(row as GenTableColumnVO).isRequired === 1" size="small" @change="(v: string | number | boolean) => handleColumnUpdate(row as GenTableColumnVO, 'isRequired', v ? 1 : 0)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="查询方式" width="100">
           <template #default="{ row }">
-            <ElInput v-model="row.queryType" size="small" @change="(v: string) => handleColumnUpdate(row, 'queryType', v)" />
+            <ElInput v-model="(row as GenTableColumnVO).queryType" size="small" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'queryType', v)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="显示类型" width="110">
           <template #default="{ row }">
-            <ElInput v-model="row.htmlType" size="small" @change="(v: string) => handleColumnUpdate(row, 'htmlType', v)" />
+            <ElInput v-model="(row as GenTableColumnVO).htmlType" size="small" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'htmlType', v)" />
           </template>
         </ElTableColumn>
         <ElTableColumn label="字典类型" width="120">
           <template #default="{ row }">
-            <ElInput v-model="row.dictType" size="small" @change="(v: string) => handleColumnUpdate(row, 'dictType', v)" />
+            <ElInput v-model="(row as GenTableColumnVO).dictType" size="small" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'dictType', v)" />
           </template>
         </ElTableColumn>
       </YTable>

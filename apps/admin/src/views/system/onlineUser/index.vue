@@ -43,9 +43,9 @@ const columns: YTableColumn<OnlineUserVO>[] = [
   { prop: 'username', label: '用户名', minWidth: 120 },
   { prop: 'tokenValue', label: 'Token', minWidth: 140 },
   { prop: 'ipAddr', label: '登录IP', width: 150 },
-  { prop: 'loginTime', label: '登录时间', width: 170, sortable: 'custom' },
+  { prop: 'loginTime', label: '登录时间', width: 170 },
   { prop: 'lastActiveTime', label: '最后活跃时间', width: 170 },
-  { prop: 'tokenTtl', label: '剩余有效期', width: 110, formatter: (_row, _col, val: number) => formatTtl(val) },
+  { prop: 'tokenTtl', label: '剩余有效期', width: 110, formatter: (_row, _col, val) => formatTtl(val as number) },
 ];
 
 // ---------- 强退 ----------
