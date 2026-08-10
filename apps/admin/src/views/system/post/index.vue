@@ -97,7 +97,7 @@ const formSchemas = computed<YFormSchema[]>(() => [
   {
     field: 'sort',
     label: '排序',
-    component: 'input-number',
+    component: 'number',
     placeholder: '数字越小越靠前',
     props: { min: 0, style: { width: '100%' } },
   },
