@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
-import { ChatDotRound, Delete, Plus, Promotion } from '@element-plus/icons-vue';
+import { ChatDotRound, Delete, EditPen, Plus, Promotion } from '@element-plus/icons-vue';
 import type { AiChatMessageVO, AiConversationVO, AiProviderOptionVO } from '@pivotos/types';
-import { deleteConversation, listConversations, listMessages, streamChat } from '@/api/ai/chat';
+import { deleteConversation, listConversations, listMessages, renameConversation, streamChat } from '@/api/ai/chat';
 import { listProviderModels, listProviderOptions } from '@/api/ai/provider';
+import MarkdownView from './MarkdownView.vue';
 
 /** 本地消息（流式追加时 assistant 消息尚无落库 id） */
 interface LocalMessage {
@@ -53,6 +54,23 @@ async function handleDelete(row: AiConversationVO): Promise<void> {
   await loadConversations();
 }
 
+async function handleRename(row: AiConversationVO): Promise<void> {
+  const { value } = await ElMessageBox.prompt('请输入新的会话标题', '重命名会话', {
+    inputValue: row.title,
+    inputValidator: (v: string) => {
+      const title = v.trim();
+      if (!title) return '会话标题不能为空';
+      if (title.length > 128) return '会话标题最长 128 字符';
+      return true;
+    },
+  });
+  const title = value.trim();
+  if (title === row.title) return;
+  await renameConversation(row.id, title);
+  row.title = title;
+  ElMessage.success('会话已重命名');
+}
+
 // ---------- 供应商 / 模型选择 ----------
 const providers = ref<AiProviderOptionVO[]>([]);
 /** 选中供应商 id，空串 = 默认（后端：默认供应商 → 静态配置兜底） */
@@ -61,6 +79,13 @@ const models = ref<string[]>([]);
 /** 选中模型，空串 = 供应商默认模型 */
 const model = ref('');
 const modelsLoading = ref(false);
+/** 常用记录的响应式版本号：localStorage 写入不自知，记录后 +1 驱动 pinnedModels 重算 */
+const recentVersion = ref(0);
+/** 下拉展示序：原始列表 → 当前供应商最近使用置顶（computed 保证记录后即时重排，不用重选供应商） */
+const pinnedModels = computed(() => {
+  void recentVersion.value;
+  return pinRecentModels(providerId.value, models.value);
+});
 
 async function loadProviders(): Promise<void> {
   try {
@@ -85,6 +110,38 @@ async function handleProviderChange(id: string): Promise<void> {
   } finally {
     modelsLoading.value = false;
   }
+}
+
+// ---------- 常用模型置顶（localStorage 按供应商各记最近 5 个，S45 ④口径 A） ----------
+const RECENT_MODELS_KEY = 'ai-chat-recent-models';
+const RECENT_MODELS_MAX = 5;
+
+type RecentModelsMap = Record<string, string[]>;
+
+function loadRecentModels(): RecentModelsMap {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_MODELS_KEY) ?? '{}') as RecentModelsMap;
+  } catch {
+    return {};
+  }
+}
+
+/** 本次对话实际使用的模型落记录（仅显式选择了供应商+模型才记，空模型=默认无置顶意义） */
+function recordRecentModel(): void {
+  if (!providerId.value || !model.value) return;
+  const map = loadRecentModels();
+  map[providerId.value] = [
+    model.value,
+    ...(map[providerId.value] ?? []).filter((m) => m !== model.value),
+  ].slice(0, RECENT_MODELS_MAX);
+  localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(map));
+  recentVersion.value += 1;
+}
+
+/** 常用置顶：当前供应商最近使用的模型（按新近度）排前，其余保持原顺序 */
+function pinRecentModels(providerKey: string, all: string[]): string[] {
+  const recent = (loadRecentModels()[providerKey] ?? []).filter((m) => all.includes(m));
+  return [...recent, ...all.filter((m) => !recent.includes(m))];
 }
 
 // ---------- 流式对话 ----------
@@ -126,6 +183,8 @@ async function handleSend(): Promise<void> {
       },
       onDone(done) {
         assistant.id = done.messageId;
+        // 本次实际选用的模型计入「常用」（S45 ④）
+        recordRecentModel();
         // 会话 updateTime 变化，刷新排序
         void loadConversations();
       },
@@ -144,6 +203,11 @@ async function handleSend(): Promise<void> {
 
 function handleStop(): void {
   abortController?.abort();
+}
+
+/** 打字机光标：仅流式中的最后一条 assistant 消息显示（流结束 streaming=false 自动消除） */
+function showCursor(msg: LocalMessage, index: number): boolean {
+  return streaming.value && msg.role === 'assistant' && index === messages.value.length - 1;
 }
 
 function handleKeydown(e: Event | KeyboardEvent): void {
@@ -188,7 +252,13 @@ onMounted(() => {
           <ElIcon class="ai-chat__conversation-icon"><ChatDotRound /></ElIcon>
           <span class="ai-chat__conversation-title" :title="item.title">{{ item.title }}</span>
           <ElButton
-            class="ai-chat__conversation-delete"
+            class="ai-chat__conversation-action"
+            link
+            :icon="EditPen"
+            @click.stop="handleRename(item)"
+          />
+          <ElButton
+            class="ai-chat__conversation-action"
             link
             type="danger"
             :icon="Delete"
@@ -213,7 +283,9 @@ onMounted(() => {
             <span v-if="msg.role === 'assistant' && !msg.content && streaming" class="ai-chat__typing">
               正在思考…
             </span>
+            <MarkdownView v-else-if="msg.role === 'assistant'" :content="msg.content" />
             <template v-else>{{ msg.content }}</template>
+            <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
           </div>
         </div>
       </div>
@@ -251,7 +323,7 @@ onMounted(() => {
               :loading="modelsLoading"
               :disabled="streaming || !providerId"
             >
-              <ElOption v-for="m in models" :key="m" :label="m" :value="m" />
+              <ElOption v-for="m in pinnedModels" :key="m" :label="m" :value="m" />
             </ElSelect>
           </div>
           <ElButton v-if="streaming" @click="handleStop">停止</ElButton>
@@ -323,11 +395,12 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-.ai-chat__conversation-delete {
+.ai-chat__conversation-action {
   visibility: hidden;
+  margin-left: 0;
 }
 
-.ai-chat__conversation:hover .ai-chat__conversation-delete {
+.ai-chat__conversation:hover .ai-chat__conversation-action {
   visibility: visible;
 }
 
@@ -389,6 +462,23 @@ onMounted(() => {
 
 .ai-chat__typing {
   color: var(--el-text-color-secondary);
+}
+
+/* 打字机光标：流式中闪烁，流结束随 streaming=false 移除 */
+.ai-chat__cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--el-color-primary);
+  vertical-align: text-bottom;
+  animation: ai-chat-blink 1s step-end infinite;
+}
+
+@keyframes ai-chat-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 /* ---------- 输入区 ---------- */

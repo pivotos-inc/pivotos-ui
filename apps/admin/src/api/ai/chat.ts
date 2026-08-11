@@ -28,6 +28,11 @@ export function deleteConversation(conversationId: string): Promise<void> {
   return request.delete<unknown, void>(`/ai/conversation/${conversationId}`);
 }
 
+/** 重命名会话（PUT body {title}，后端校验非空且 ≤128） */
+export function renameConversation(conversationId: string, title: string): Promise<void> {
+  return request.put<unknown, void>(`/ai/conversation/${conversationId}`, { title });
+}
+
 /** SSE 流式对话回调（事件序列 meta → delta* → done，异常 error） */
 export interface ChatStreamCallbacks {
   onMeta?: (meta: AiChatStreamMeta) => void;
