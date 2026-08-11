@@ -368,6 +368,18 @@ export interface GenTableVO extends BaseVO {
   genType: string;
   genPath?: string;
   remark?: string;
+  /** 模板类型（crud单表 tree树表 sub主子表） */
+  tplCategory?: string;
+  /** 树编码字段（tpl_category=tree） */
+  treeCode?: string;
+  /** 树父编码字段（tpl_category=tree） */
+  treeParentCode?: string;
+  /** 树名称字段（tpl_category=tree） */
+  treeName?: string;
+  /** 子表名（tpl_category=sub） */
+  subTableName?: string;
+  /** 子表外键列名（tpl_category=sub） */
+  subTableFkName?: string;
 }
 
 /** 生成表字段信息 */
@@ -389,6 +401,12 @@ export interface GenTableColumnVO {
   queryType: string;
   htmlType: string;
   dictType: string;
+  /** 关联表名（fk 关联下拉，S50 / 2.4-F1） */
+  fkTable?: string;
+  /** 关联值列 */
+  fkValueColumn?: string;
+  /** 关联显示列 */
+  fkLabelColumn?: string;
   sort: number;
 }
 
