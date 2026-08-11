@@ -53,6 +53,14 @@ const formRef = ref<InstanceType<typeof YForm>>();
 const formModel = reactive<Record<string, unknown>>({});
 const isEdit = computed(() => !!formModel.id);
 
+/** base-url 占位建议按 code 区分：保留字 anthropic/gemini 走官方 SDK（源站地址，无需版本段），其余按 OpenAI 兼容（须含 /v1） */
+const baseUrlPlaceholder = computed(() => {
+  const code = (formModel.code as string | undefined)?.trim().toLowerCase();
+  if (code === 'anthropic') return 'Anthropic 源站地址，默认 https://api.anthropic.com';
+  if (code === 'gemini') return 'Gemini 源站地址，默认 https://generativelanguage.googleapis.com';
+  return 'OpenAI 兼容地址，须含 /v1';
+});
+
 const formSchemas = computed<YFormSchema[]>(() => [
   {
     field: 'name',
@@ -65,7 +73,7 @@ const formSchemas = computed<YFormSchema[]>(() => [
     field: 'code',
     label: '编码',
     component: 'input',
-    placeholder: '小写字母/数字/中划线，如 dashscope',
+    placeholder: '如 dashscope；保留字 anthropic / gemini，其余按 OpenAI 兼容接入',
     props: { disabled: isEdit.value },
     rules: [
       { required: true, message: '编码不能为空', trigger: 'blur' },
@@ -76,7 +84,7 @@ const formSchemas = computed<YFormSchema[]>(() => [
     field: 'baseUrl',
     label: 'base-url',
     component: 'input',
-    placeholder: 'OpenAI 兼容地址，须含 /v1',
+    placeholder: baseUrlPlaceholder.value,
     rules: [
       { required: true, message: 'base-url 不能为空', trigger: 'blur' },
       { pattern: /^https?:\/\/.+/, message: '须以 http(s):// 开头', trigger: 'blur' },
