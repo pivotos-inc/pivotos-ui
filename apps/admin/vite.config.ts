@@ -76,6 +76,16 @@ export default defineConfig(({ mode }) => {
             }
           },
         },
+        // monitor 插件（S48 2.3-F7 服务/缓存监控）
+        '/monitor': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+          bypass(req) {
+            if (req.headers.accept?.includes('text/html')) {
+              return '/index.html';
+            }
+          },
+        },
       },
     },
   };
