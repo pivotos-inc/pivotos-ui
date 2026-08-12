@@ -18,6 +18,11 @@ export function parseCodingSub(body: CodingParseBody) {
   return request.post<unknown, CodingSessionVO>(`${BASE}/sub/parse`, body, { timeout: 120_000 });
 }
 
+/** 树表生成（S54 / tree intent，走 LLM，超时放宽到 120s） */
+export function parseCodingTree(body: CodingParseBody) {
+  return request.post<unknown, CodingSessionVO>(`${BASE}/tree/parse`, body, { timeout: 120_000 });
+}
+
 /** 分页查询历史会话（列表视图，不含生成文件） */
 export function pageCodingSessions(params?: Record<string, unknown>) {
   return request.get<unknown, { list: CodingSessionVO[]; total: number }>(`${BASE}/session/page`, { params });
