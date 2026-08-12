@@ -86,6 +86,26 @@ export default defineConfig(({ mode }) => {
             }
           },
         },
+        // workflow 插件（S56 2.5-F2 流程定义管理）
+        '/workflow': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+          bypass(req) {
+            if (req.headers.accept?.includes('text/html')) {
+              return '/index.html';
+            }
+          },
+        },
+        // WarmFlow 内置设计器 API（/warm-flow/definition/save 等）
+        '/warm-flow': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+        },
+        // WarmFlow 内置设计器 UI（/warm-flow-ui/index.html 静态资源）
+        '/warm-flow-ui': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:8080',
+          changeOrigin: true,
+        },
       },
     },
   };
