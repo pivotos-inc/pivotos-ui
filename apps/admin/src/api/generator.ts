@@ -49,6 +49,11 @@ export function updateGenColumn(body: GenTableColumnVO) {
   return request.put<unknown, void>(`${BASE}/column`, body);
 }
 
+/** 更新表配置（模板类型/树/主子，S50 / 2.4-F1） */
+export function updateGenTable(body: Partial<GenTableVO> & { id: string }) {
+  return request.put<unknown, void>(`${BASE}/table`, body);
+}
+
 /** 预览代码 */
 export function previewCode(tableId: string) {
   return request.get<unknown, PreviewCodeResult>(`${BASE}/preview/${tableId}`);

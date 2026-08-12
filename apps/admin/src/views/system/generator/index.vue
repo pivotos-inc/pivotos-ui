@@ -12,6 +12,7 @@ import {
   synchGenTable,
   listGenColumns,
   updateGenColumn,
+  updateGenTable,
   previewCode,
   generateToProject,
   downloadCode,
@@ -148,6 +149,74 @@ async function handleGenerate(row: GenTableVO) {
   ElMessage.success('生成成功');
 }
 
+/* ================= 表配置（模板类型/树/主子，S50 / 2.4-F1） ================= */
+const tableDialogVisible = ref(false);
+const tableSaving = ref(false);
+const tableFormModel = reactive({
+  id: '',
+  tplCategory: 'crud',
+  treeCode: '',
+  treeParentCode: '',
+  treeName: '',
+  subTableName: '',
+  subTableFkName: '',
+});
+
+const tableSchemas = computed<YFormSchema[]>(() => {
+  const schemas: YFormSchema[] = [
+    {
+      field: 'tplCategory',
+      label: '模板类型',
+      component: 'select',
+      emptyOption: false,
+      options: [
+        { label: '单表 CRUD', value: 'crud' },
+        { label: '树表（v2.4.0 规划）', value: 'tree' },
+        { label: '主子表（v2.4.0 规划）', value: 'sub' },
+      ],
+    },
+  ];
+  if (tableFormModel.tplCategory === 'tree') {
+    schemas.push(
+      { field: 'treeCode', label: '树编码字段', component: 'input', placeholder: '如 id' },
+      { field: 'treeParentCode', label: '树父编码字段', component: 'input', placeholder: '如 parent_id' },
+      { field: 'treeName', label: '树名称字段', component: 'input', placeholder: '如 name' },
+    );
+  }
+  if (tableFormModel.tplCategory === 'sub') {
+    schemas.push(
+      { field: 'subTableName', label: '子表名', component: 'input', placeholder: '如 biz_order_item' },
+      { field: 'subTableFkName', label: '子表外键列', component: 'input', placeholder: '如 order_id' },
+    );
+  }
+  return schemas;
+});
+
+function openTableConfig(row: GenTableVO) {
+  Object.assign(tableFormModel, {
+    id: row.id,
+    tplCategory: row.tplCategory || 'crud',
+    treeCode: row.treeCode || '',
+    treeParentCode: row.treeParentCode || '',
+    treeName: row.treeName || '',
+    subTableName: row.subTableName || '',
+    subTableFkName: row.subTableFkName || '',
+  });
+  tableDialogVisible.value = true;
+}
+
+async function handleTableSave() {
+  tableSaving.value = true;
+  try {
+    await updateGenTable({ ...tableFormModel });
+    ElMessage.success('保存成功');
+    tableDialogVisible.value = false;
+    await loadGenTables();
+  } finally {
+    tableSaving.value = false;
+  }
+}
+
 /* ================= 字段配置 ================= */
 const columnDialogVisible = ref(false);
 const columnLoading = ref(false);
@@ -252,10 +321,11 @@ onMounted(() => {
           row-key="id"
           @refresh="loadGenTables"
         >
-          <ElTableColumn label="操作" width="320" fixed="right">
+          <ElTableColumn label="操作" width="380" fixed="right">
             <template #default="{ row }">
               <ElButton link type="primary" @click="openPreview(row as GenTableVO)">预览</ElButton>
               <ElButton link type="primary" @click="openColumns(row as GenTableVO)">字段</ElButton>
+              <ElButton link type="primary" @click="openTableConfig(row as GenTableVO)">表配置</ElButton>
               <ElButton link type="success" @click="handleSynch(row as GenTableVO)">同步</ElButton>
               <ElButton link type="primary" @click="handleDownload(row as GenTableVO)">下载</ElButton>
               <ElButton link type="warning" @click="handleGenerate(row as GenTableVO)">生成</ElButton>
@@ -267,7 +337,7 @@ onMounted(() => {
     </ElTabs>
 
     <!-- 字段配置弹窗 -->
-    <YDialog v-model="columnDialogVisible" title="字段配置" width="900px">
+    <YDialog v-model="columnDialogVisible" title="字段配置" width="1280px">
       <YTable v-loading="columnLoading" :data="columns" :columns="columnBaseColumns" row-key="id">
         <ElTableColumn label="列表" width="65">
           <template #default="{ row }">
@@ -309,7 +379,30 @@ onMounted(() => {
             <ElInput v-model="(row as GenTableColumnVO).dictType" size="small" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'dictType', v)" />
           </template>
         </ElTableColumn>
+        <ElTableColumn label="关联表" width="130">
+          <template #default="{ row }">
+            <ElInput v-model="(row as GenTableColumnVO).fkTable" size="small" placeholder="如 sys_dept" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'fkTable', v)" />
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="关联值列" width="110">
+          <template #default="{ row }">
+            <ElInput v-model="(row as GenTableColumnVO).fkValueColumn" size="small" placeholder="如 id" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'fkValueColumn', v)" />
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="关联显示列" width="120">
+          <template #default="{ row }">
+            <ElInput v-model="(row as GenTableColumnVO).fkLabelColumn" size="small" placeholder="如 dept_name" @change="(v: string) => handleColumnUpdate(row as GenTableColumnVO, 'fkLabelColumn', v)" />
+          </template>
+        </ElTableColumn>
       </YTable>
+    </YDialog>
+
+    <!-- 表配置弹窗（S50 / 2.4-F1） -->
+    <YDialog v-model="tableDialogVisible" title="表配置" width="520px" :confirm-loading="tableSaving" @confirm="handleTableSave">
+      <YForm v-model="tableFormModel" :schemas="tableSchemas" :label-width="'110px'" />
+      <div style="margin-top: 4px; color: #909399; font-size: 13px">
+        树表/主子表模板在 v2.4.0 后续会话落地；本版先生效「字段配置」里的 fk 关联下拉。
+      </div>
     </YDialog>
 
     <!-- 代码预览弹窗 -->

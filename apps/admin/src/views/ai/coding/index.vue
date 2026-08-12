@@ -17,12 +17,12 @@ import { YTable } from '@pivotos/ui';
 import type { YTableColumn } from '@pivotos/ui';
 import type { CodingSessionVO } from '@pivotos/types';
 import { useTablePage } from '@/hooks';
-import { applyCodingSession, getCodingSession, parseCoding, parseCodingPlugin } from '@/api/ai/coding';
+import { applyCodingSession, getCodingSession, parseCoding, parseCodingPlugin, parseCodingSub, parseCodingTree } from '@/api/ai/coding';
 
 const router = useRouter();
 
 /* ================= 自然语言输入 ================= */
-type TaskType = 1 | 2;
+type TaskType = 1 | 2 | 3 | 4;
 const taskType = ref<TaskType>(1);
 const description = ref('');
 const parsing = ref(false);
@@ -39,9 +39,23 @@ const PLUGIN_EXAMPLES = [
   '做一个知识库插件，沉淀企业文档与经验',
 ];
 
-const TASK_TYPE_MAP: Record<number, { label: string; type: 'primary' | 'success' }> = {
+const SUB_EXAMPLES = [
+  '订单和订单明细，明细含商品名称、数量、单价',
+  '报销单和报销明细，明细含费用类型、金额、票据号',
+  '采购单和采购明细，明细含物料名称、数量、到货日期',
+];
+
+const TREE_EXAMPLES = [
+  '行政区划管理，含区划编码、名称、排序号、上级区划',
+  '商品分类，含分类编码、分类名称、排序、上级分类',
+  '部门层级结构，含部门编码、部门名称、排序号、上级部门',
+];
+
+const TASK_TYPE_MAP: Record<number, { label: string; type: 'primary' | 'success' | 'warning' | 'info' }> = {
   1: { label: '单表CRUD', type: 'primary' },
   2: { label: 'Plugin骨架', type: 'success' },
+  3: { label: '主子表', type: 'warning' },
+  4: { label: '树表', type: 'info' },
 };
 
 const STATUS_MAP: Record<number, { label: string; type: 'info' | 'warning' | 'success' | 'danger' }> = {
@@ -59,7 +73,13 @@ async function handleParse() {
   parsing.value = true;
   try {
     const body = { description: description.value.trim() };
-    const session = taskType.value === 2 ? await parseCodingPlugin(body) : await parseCoding(body);
+    const session = taskType.value === 2
+      ? await parseCodingPlugin(body)
+      : taskType.value === 3
+        ? await parseCodingSub(body)
+        : taskType.value === 4
+          ? await parseCodingTree(body)
+          : await parseCoding(body);
     ElMessage.success('解析生成完成，请评审后确认应用');
     await loadSession(session.id);
     await search();
@@ -134,24 +154,26 @@ const columns: YTableColumn<CodingSessionVO>[] = [
     <div class="coding-input">
       <div class="coding-input__head">
         <div class="coding-input__title">
-          {{ taskType === 2 ? '用一句话描述你要的业务域，AI 帮你生成新 Plugin 双模块骨架' : '用一句话描述你想要的业务功能，AI 帮你生成全套 CRUD 代码' }}
+          {{ taskType === 2 ? '用一句话描述你要的业务域，AI 帮你生成新 Plugin 双模块骨架' : taskType === 3 ? '用一句话描述主子结构业务（如订单+明细），AI 帮你生成主子表全套代码' : taskType === 4 ? '用一句话描述树形/层级结构业务（如行政区划、商品分类），AI 帮你生成树表全套代码' : '用一句话描述你想要的业务功能，AI 帮你生成全套 CRUD 代码' }}
         </div>
         <ElRadioGroup v-model="taskType" size="small">
           <ElRadioButton :value="1">单表 CRUD</ElRadioButton>
           <ElRadioButton :value="2">Plugin 骨架</ElRadioButton>
+          <ElRadioButton :value="3">主子表</ElRadioButton>
+          <ElRadioButton :value="4">树表</ElRadioButton>
         </ElRadioGroup>
       </div>
       <ElInput
         v-model="description"
         type="textarea"
         :rows="3"
-        :placeholder="taskType === 2 ? '例如：做一个资产管理插件，管理固定资产台账与领用' : '例如：帮我给客户表生成增删改查，字段有姓名、手机号、备注'"
+        :placeholder="taskType === 2 ? '例如：做一个资产管理插件，管理固定资产台账与领用' : taskType === 3 ? '例如：订单和订单明细，明细含商品名称、数量、单价' : taskType === 4 ? '例如：行政区划管理，含区划编码、名称、排序号、上级区划' : '例如：帮我给客户表生成增删改查，字段有姓名、手机号、备注'"
       />
       <div class="coding-input__bar">
         <div class="coding-input__examples">
           <span class="coding-input__tip">试试：</span>
           <ElButton
-            v-for="ex in (taskType === 2 ? PLUGIN_EXAMPLES : EXAMPLES)"
+            v-for="ex in (taskType === 2 ? PLUGIN_EXAMPLES : taskType === 3 ? SUB_EXAMPLES : taskType === 4 ? TREE_EXAMPLES : EXAMPLES)"
             :key="ex"
             size="small"
             round
@@ -161,7 +183,7 @@ const columns: YTableColumn<CodingSessionVO>[] = [
           </ElButton>
         </div>
         <ElButton v-hasPermi="'ai:coding:parse'" type="primary" :loading="parsing" @click="handleParse">
-          {{ parsing ? 'AI 解析生成中（约 30 秒）…' : taskType === 2 ? '生成插件骨架' : '生成代码' }}
+          {{ parsing ? 'AI 解析生成中（约 30 秒）…' : taskType === 2 ? '生成插件骨架' : taskType === 3 ? '生成主子表代码' : taskType === 4 ? '生成树表代码' : '生成代码' }}
         </ElButton>
       </div>
     </div>
@@ -177,6 +199,12 @@ const columns: YTableColumn<CodingSessionVO>[] = [
           </ElDescriptionsItem>
           <ElDescriptionsItem :label="current.taskType === 2 ? '插件名' : '模块名'">{{ current.moduleName || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem v-if="current.taskType !== 2" label="表名">{{ current.tableName || '-' }}</ElDescriptionsItem>
+          <ElDescriptionsItem v-if="current.taskType === 3" label="子表">
+            {{ current.extra?.subTableName ?? '-' }}（fk: {{ current.extra?.subFkName ?? '-' }}）
+          </ElDescriptionsItem>
+          <ElDescriptionsItem v-if="current.taskType === 4" label="树配置">
+            code: {{ current.extra?.treeCode ?? '-' }} / parent: {{ current.extra?.treeParentCode ?? '-' }} / name: {{ current.extra?.treeName ?? '-' }}
+          </ElDescriptionsItem>
           <ElDescriptionsItem v-if="current.taskType === 2" label="错误码段">
             {{ current.extra?.errorCodeBase ?? '-' }}
           </ElDescriptionsItem>
