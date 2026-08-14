@@ -1,4 +1,5 @@
 import type {
+  KbChunkVO,
   KbDocPageQuery,
   KbDocUploadBody,
   KbDocumentVO,
@@ -67,6 +68,11 @@ export function deleteKbDoc(id: string): Promise<void> {
 /** 重新向量化文档 */
 export function reindexKbDoc(id: string): Promise<void> {
   return request.post<unknown, void>(`/ai/kb/doc/${id}/reindex`);
+}
+
+/** 文档文本块列表（分块查看/解析预览用） */
+export function listDocChunks(id: string): Promise<KbChunkVO[]> {
+  return request.get<unknown, KbChunkVO[]>(`/ai/kb/doc/${id}/chunks`);
 }
 
 /** 知识库相似性检索调试（管理端验证 RAG 召回） */

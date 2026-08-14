@@ -22,6 +22,20 @@ const STATUS_OPTIONS: YFormOption[] = [
   { label: '停用', value: 1 },
 ];
 
+/** Key 用途选项：all=通用（对话+向量化）, chat=对话, embedding=向量化 */
+const PURPOSE_OPTIONS: YFormOption[] = [
+  { label: '通用', value: 'all' },
+  { label: '对话', value: 'chat' },
+  { label: '向量化', value: 'embedding' },
+];
+
+/** 用途 → 文案与颜色 */
+const PURPOSE_META: Record<string, { text: string; type: 'success' | 'warning' | 'info' }> = {
+  all: { text: '通用', type: 'success' },
+  chat: { text: '对话', type: 'warning' },
+  embedding: { text: '向量化', type: 'info' },
+};
+
 // ---------- 供应商列表 ----------
 const loading = ref(false);
 const rows = ref<AiProviderVO[]>([]);
@@ -32,6 +46,7 @@ const columns: YTableColumn<AiProviderVO>[] = [
   { prop: 'code', label: '编码', width: 120 },
   { prop: 'baseUrl', label: 'base-url', minWidth: 240, showOverflowTooltip: true },
   { prop: 'defaultModel', label: '默认模型', minWidth: 130 },
+  { prop: 'embeddingModel', label: '向量化模型', minWidth: 130, showOverflowTooltip: true },
   { prop: 'activeKeyCount', label: '启用 Key', width: 90, align: 'center' },
   { prop: 'status', label: '状态', width: 80, align: 'center', slot: 'status' },
   { prop: 'sort', label: '排序', width: 70, align: 'center' },
@@ -92,6 +107,7 @@ const formSchemas = computed<YFormSchema[]>(() => [
     ],
   },
   { field: 'defaultModel', label: '默认模型', component: 'input', placeholder: '如 qwen-plus（对话未选模型时兜底）' },
+  { field: 'embeddingModel', label: '向量化模型', component: 'input', placeholder: '如 text-embedding-v3（空则回退静态配置）' },
   { field: 'sort', label: '排序', component: 'number', props: { min: 0 } },
   { field: 'status', label: '状态', component: 'radio', options: STATUS_OPTIONS },
   { field: 'remark', label: '备注', component: 'textarea' },
@@ -120,6 +136,7 @@ async function handleSubmit(): Promise<void> {
       code: formModel.code as string,
       baseUrl: formModel.baseUrl as string,
       defaultModel: formModel.defaultModel as string | undefined,
+      embeddingModel: formModel.embeddingModel as string | undefined,
       sort: formModel.sort as number | undefined,
       status: formModel.status as number | undefined,
       remark: formModel.remark as string | undefined,
@@ -171,6 +188,7 @@ async function loadKeys(): Promise<void> {
 const keyColumns: YTableColumn<AiApiKeyVO>[] = [
   { type: 'index', label: '#', width: 56, align: 'center' },
   { prop: 'label', label: '备注名', minWidth: 120 },
+  { prop: 'purpose', label: '用途', width: 90, align: 'center', slot: 'purpose' },
   { prop: 'keyMasked', label: 'API Key', minWidth: 130 },
   { prop: 'status', label: '状态', width: 80, align: 'center', slot: 'status' },
   { prop: 'failCount', label: '健康状态', width: 110, align: 'center', slot: 'health' },
@@ -194,6 +212,7 @@ const isKeyEdit = computed(() => !!keyFormModel.id);
 
 const keyFormSchemas = computed<YFormSchema[]>(() => [
   { field: 'label', label: '备注名', component: 'input', placeholder: '如 主 Key / 备用 Key' },
+  { field: 'purpose', label: '用途', component: 'radio', options: PURPOSE_OPTIONS },
   {
     field: 'apiKey',
     label: 'Key 明文',
@@ -209,13 +228,13 @@ const keyFormSchemas = computed<YFormSchema[]>(() => [
 
 function openKeyAdd(): void {
   Object.keys(keyFormModel).forEach((k) => delete keyFormModel[k]);
-  Object.assign(keyFormModel, { status: 0 });
+  Object.assign(keyFormModel, { status: 0, purpose: 'all' });
   keyFormVisible.value = true;
 }
 
 function openKeyEdit(row: AiApiKeyVO): void {
   Object.keys(keyFormModel).forEach((k) => delete keyFormModel[k]);
-  Object.assign(keyFormModel, { id: row.id, label: row.label, status: row.status });
+  Object.assign(keyFormModel, { id: row.id, label: row.label, purpose: row.purpose ?? 'all', status: row.status });
   keyFormVisible.value = true;
 }
 
@@ -228,6 +247,7 @@ async function handleKeySubmit(): Promise<void> {
       id: keyFormModel.id as string | undefined,
       providerId: keyProvider.value.id,
       label: keyFormModel.label as string | undefined,
+      purpose: keyFormModel.purpose as string | undefined,
       apiKey: keyFormModel.apiKey as string | undefined,
       status: keyFormModel.status as number | undefined,
     };
@@ -310,6 +330,14 @@ onMounted(load);
         <template #status="{ row }">
           <ElTag :type="(row as AiApiKeyVO).status === 0 ? 'success' : 'info'" size="small">
             {{ (row as AiApiKeyVO).status === 0 ? '启用' : '停用' }}
+          </ElTag>
+        </template>
+        <template #purpose="{ row }">
+          <ElTag
+            :type="(PURPOSE_META[(row as AiApiKeyVO).purpose ?? 'all'] ?? PURPOSE_META.all).type"
+            size="small"
+          >
+            {{ (PURPOSE_META[(row as AiApiKeyVO).purpose ?? 'all'] ?? PURPOSE_META.all).text }}
           </ElTag>
         </template>
         <template #health="{ row }">

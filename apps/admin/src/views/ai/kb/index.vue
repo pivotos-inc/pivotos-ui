@@ -6,13 +6,14 @@ import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
 import { DictTag, FileUpload } from '@pivotos/components';
-import type { KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
+import type { KbChunkVO, KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
 import { useDict, useTablePage } from '@/hooks';
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
   deleteKbDoc,
   getKnowledgeBase,
+  listDocChunks,
   pageKbDocs,
   reindexKbDoc,
   searchKb,
@@ -54,6 +55,7 @@ const columns: YTableColumn<KnowledgeBaseVO>[] = [
   { prop: 'embeddingModel', label: 'Embedding 模型', width: 160, formatter: (row) => row.embeddingModel || '-' },
   { prop: 'chunkSize', label: '分块大小', width: 100, align: 'center' },
   { prop: 'chunkOverlap', label: '重叠', width: 80, align: 'center' },
+  { prop: 'hybridSearch', label: '混合检索', width: 100, align: 'center', formatter: (row) => row.hybridSearch === false ? '关' : '开' },
   { prop: 'docCount', label: '文档数', width: 90, align: 'center' },
   { prop: 'status', label: '状态', width: 90, align: 'center', slot: 'status' },
   { prop: 'createTime', label: '创建时间', width: 170 },
@@ -104,6 +106,15 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
     props: { min: 0, step: 1 },
   },
   {
+    field: 'hybridSearch',
+    label: '混合检索',
+    component: 'radio',
+    options: [
+      { label: '开启', value: true },
+      { label: '关闭', value: false },
+    ],
+  },
+  {
     field: 'status',
     label: '状态',
     component: 'radio',
@@ -118,6 +129,7 @@ function openKbAdd(): void {
     vectorStoreType: 'milvus',
     chunkSize: 500,
     chunkOverlap: 100,
+    hybridSearch: true,
     status: 0,
   });
   kbDialogVisible.value = true;
@@ -134,6 +146,7 @@ async function openKbEdit(row: KnowledgeBaseVO): Promise<void> {
     embeddingModel: detail.embeddingModel,
     chunkSize: detail.chunkSize,
     chunkOverlap: detail.chunkOverlap,
+    hybridSearch: detail.hybridSearch ?? true,
     status: detail.status,
   });
   kbDialogVisible.value = true;
@@ -152,6 +165,7 @@ async function handleKbSubmit(): Promise<void> {
       embeddingModel: (kbForm.embeddingModel as string) || undefined,
       chunkSize: Number(kbForm.chunkSize),
       chunkOverlap: Number(kbForm.chunkOverlap),
+      hybridSearch: kbForm.hybridSearch !== false,
       status: Number(kbForm.status),
     };
     if (isKbEdit.value) {
@@ -205,23 +219,38 @@ const searchResultColumns: YTableColumn<KbSearchResult>[] = [
   {
     prop: 'content',
     label: '文本内容',
-    minWidth: 260,
+    minWidth: 240,
     showOverflowTooltip: true,
     formatter: (row) => row.content || '-',
   },
   {
     prop: 'score',
-    label: '相似度',
-    width: 110,
+    label: 'RRF 分数',
+    width: 100,
     align: 'center',
     formatter: (row) => (row.score != null ? row.score.toFixed(4) : '-'),
   },
   {
+    prop: 'vectorRank',
+    label: '向量排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.vectorRank ? String(row.vectorRank) : '-'),
+  },
+  {
+    prop: 'bm25Rank',
+    label: 'BM25 排名',
+    width: 100,
+    align: 'center',
+    formatter: (row) => (row.bm25Rank ? String(row.bm25Rank) : '-'),
+  },
+  {
     prop: 'source',
     label: '来源文件',
-    minWidth: 160,
+    minWidth: 140,
     showOverflowTooltip: true,
     formatter: (row) =>
+      row.fileName ||
       (row.metadata?.fileName as string) ||
       (row.metadata?.file_name as string) ||
       (row.metadata?.source as string) ||
@@ -390,6 +419,51 @@ async function handleDocReindex(row: KbDocumentVO): Promise<void> {
   await loadDocs();
 }
 
+/* ================= 分块查看 / 解析预览 ================= */
+
+const currentDoc = ref<KbDocumentVO>();
+const chunkDialogVisible = ref(false);
+const previewDialogVisible = ref(false);
+const chunkLoading = ref(false);
+const chunkRows = ref<KbChunkVO[]>([]);
+
+const chunkColumns: YTableColumn<KbChunkVO>[] = [
+  { type: 'expand', slot: 'chunkExpand' },
+  { prop: 'chunkIndex', label: '块序号', width: 90, align: 'center' },
+  {
+    prop: 'charCount',
+    label: '字符数',
+    width: 90,
+    align: 'center',
+    formatter: (row) => String(row.content?.length ?? 0),
+  },
+  { prop: 'content', label: '分块内容（点击展开查看完整文本）', minWidth: 300, showOverflowTooltip: true },
+];
+
+/** 解析预览全文：按块序号拼接（相邻块含重叠区间） */
+const previewText = computed(() => chunkRows.value.map((c) => c.content).join('\n\n'));
+
+async function loadChunks(row: KbDocumentVO): Promise<void> {
+  currentDoc.value = row;
+  chunkRows.value = [];
+  chunkLoading.value = true;
+  try {
+    chunkRows.value = await listDocChunks(row.id);
+  } finally {
+    chunkLoading.value = false;
+  }
+}
+
+function openDocChunks(row: KbDocumentVO): void {
+  chunkDialogVisible.value = true;
+  void loadChunks(row);
+}
+
+function openDocPreview(row: KbDocumentVO): void {
+  previewDialogVisible.value = true;
+  void loadChunks(row);
+}
+
 function formatFileSize(bytes?: number): string {
   if (bytes == null || bytes < 0) return '-';
   if (bytes < 1024) return `${bytes} B`;
@@ -468,8 +542,10 @@ function formatFileSize(bytes?: number): string {
           row-key="id"
           @refresh="loadDocs"
         >
-          <ElTableColumn label="操作" width="180" align="center" fixed="right">
+          <ElTableColumn label="操作" width="300" align="center" fixed="right">
             <template #default="{ row }">
+              <ElButton link type="primary" @click="openDocChunks(row as KbDocumentVO)">查看分块</ElButton>
+              <ElButton link type="primary" @click="openDocPreview(row as KbDocumentVO)">解析预览</ElButton>
               <ElButton v-hasPermi="'ai:kb:doc:reindex'" link type="primary" @click="handleDocReindex(row as KbDocumentVO)">重新索引</ElButton>
               <ElButton v-hasPermi="'ai:kb:doc:delete'" link type="danger" @click="handleDocDelete(row as KbDocumentVO)">删除</ElButton>
             </template>
@@ -488,6 +564,48 @@ function formatFileSize(bytes?: number): string {
     >
       <div class="upload-tip">支持 PDF、Word、TXT、Markdown 等常见文档格式；上传后将自动解析、分块并写入向量库。</div>
       <FileUpload :upload="handleDocUpload" :max-size-mb="50" accept=".pdf,.doc,.docx,.txt,.md" />
+    </YDialog>
+
+    <!-- 查看分块 -->
+    <YDialog
+      v-model="chunkDialogVisible"
+      :title="`${currentDoc?.fileName ?? ''} - 分块查看`"
+      width="860px"
+      :show-footer="false"
+    >
+      <YTable
+        :loading="chunkLoading"
+        :data="chunkRows"
+        :columns="chunkColumns"
+        hide-pagination
+        row-key="id"
+      >
+        <template #chunkExpand="{ row }">
+          <pre class="chunk-full">{{ (row as KbChunkVO).content }}</pre>
+        </template>
+        <template #empty>
+          <span>该文档暂无文本块（未完成索引或旧数据未回填）</span>
+        </template>
+      </YTable>
+    </YDialog>
+
+    <!-- 解析预览 -->
+    <YDialog
+      v-model="previewDialogVisible"
+      :title="`${currentDoc?.fileName ?? ''} - 解析预览`"
+      width="780px"
+      :show-footer="false"
+    >
+      <div v-loading="chunkLoading" class="doc-preview">
+        <div class="doc-preview__meta">
+          <span>分块大小：{{ currentDoc?.chunkSize ?? '-' }}</span>
+          <span>分块重叠：{{ currentDoc?.chunkOverlap ?? '-' }}</span>
+          <span>分块数：{{ currentDoc?.chunkCount ?? chunkRows.length }}</span>
+          <span>向量数：{{ currentDoc?.vectorCount ?? '-' }}</span>
+        </div>
+        <div class="doc-preview__tip">以下为按分块顺序拼接的解析全文；相邻分块存在重叠区间，重复内容属正常现象。</div>
+        <pre class="doc-preview__body">{{ previewText || '暂无解析内容' }}</pre>
+      </div>
     </YDialog>
 
     <!-- 检索调试 -->
@@ -543,5 +661,37 @@ function formatFileSize(bytes?: number): string {
 }
 .search-debug__form :deep(.el-form) {
   flex: 1;
+}
+.chunk-full {
+  margin: 0;
+  padding: 8px 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.doc-preview__meta {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 8px;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+}
+.doc-preview__tip {
+  margin-bottom: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.doc-preview__body {
+  max-height: 480px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.7;
 }
 </style>

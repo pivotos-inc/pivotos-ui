@@ -72,6 +72,8 @@ export interface AiProviderVO {
   code: string;
   baseUrl: string;
   defaultModel?: string;
+  /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
+  embeddingModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -95,6 +97,8 @@ export interface AiApiKeyVO {
   id: string;
   providerId: string;
   label?: string;
+  /** Key 用途（chat=对话, embedding=向量化, all=通用） */
+  purpose?: string;
   keyMasked: string;
   status?: number;
   /** 连续失败次数（健康度：成功清零，达阈值自动停用） */
@@ -110,6 +114,8 @@ export interface AiProviderSaveBody {
   code: string;
   baseUrl: string;
   defaultModel?: string;
+  /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
+  embeddingModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -120,6 +126,8 @@ export interface AiApiKeySaveBody {
   id?: string;
   providerId: string;
   label?: string;
+  /** Key 用途（chat=对话, embedding=向量化, all=通用；默认 all） */
+  purpose?: string;
   apiKey?: string;
   status?: number;
 }
@@ -170,6 +178,7 @@ export interface KnowledgeBaseVO {
   embeddingModel?: string;
   chunkSize: number;
   chunkOverlap: number;
+  hybridSearch?: boolean;
   status: number;
   docCount?: number;
   createTime?: string;
@@ -185,6 +194,7 @@ export interface KnowledgeBaseSaveBody {
   embeddingModel?: string;
   chunkSize: number;
   chunkOverlap: number;
+  hybridSearch?: boolean;
   status: number;
 }
 
@@ -201,6 +211,7 @@ export interface KbDocumentVO {
   status: number;
   errorMsg?: string;
   vectorCount?: number;
+  chunkCount?: number;
   createTime?: string;
   updateTime?: string;
 }
@@ -230,12 +241,29 @@ export interface KbSearchBody {
   topK?: number;
 }
 
-/** 知识库相似性检索结果（对齐 Spring AI Document） */
+/** 知识库相似性检索结果（对齐 KbSearchResultDTO） */
 export interface KbSearchResult {
   /** 命中的文本块内容 */
   content: string;
-  /** 相似度分数（部分 VectorStore 实现可能不返回） */
+  /** RRF 融合分数 */
   score?: number;
+  /** 来源文件名 */
+  fileName?: string;
+  /** 向量通道排名（0 表示未命中，检索调试用） */
+  vectorRank?: number;
+  /** BM25 通道排名（0 表示未命中，检索调试用） */
+  bm25Rank?: number;
   /** 元数据：kb_id / doc_id / file_name 等 */
   metadata?: Record<string, unknown>;
+}
+
+/** 知识库文本块视图对象（对齐 AiKbChunkVO） */
+export interface KbChunkVO {
+  id: string;
+  /** 块序号（从 0 开始） */
+  chunkIndex: number;
+  /** 文本块原文 */
+  content: string;
+  /** 内容MD5（前100字，去重用） */
+  contentHash?: string;
 }
