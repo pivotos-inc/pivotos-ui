@@ -6,17 +6,26 @@ import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
 import { DictTag, FileUpload } from '@pivotos/components';
-import type { KbChunkVO, KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
+import type { KbChunkVO, KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbEvalCompareVO, KbEvalQuestionVO, KbEvalRecordItemVO, KbEvalRecordSaveBody, KbEvalRecordVO, KbEvalSaveBody, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
 import { useDict, useTablePage } from '@/hooks';
 import {
+  createEvalQuestion,
   createKnowledgeBase,
+  deleteEvalQuestion,
+  deleteEvalRecord,
   deleteKnowledgeBase,
   deleteKbDoc,
+  getEvalRecordDetail,
   getKnowledgeBase,
   listDocChunks,
+  listEvalQuestions,
+  listEvalRecords,
   pageKbDocs,
   reindexKbDoc,
+  runEval,
+  saveEvalRecord,
   searchKb,
+  updateEvalQuestion,
   updateKnowledgeBase,
   uploadKbDoc,
 } from '@/api/ai/kb';
@@ -57,6 +66,7 @@ const columns: YTableColumn<KnowledgeBaseVO>[] = [
   { prop: 'chunkOverlap', label: '重叠', width: 80, align: 'center' },
   { prop: 'hybridSearch', label: '混合检索', width: 100, align: 'center', formatter: (row) => row.hybridSearch === false ? '关' : '开' },
   { prop: 'rerank', label: '重排', width: 80, align: 'center', formatter: (row) => row.rerank === false ? '关' : '开' },
+  { prop: 'queryRewrite', label: '查询改写', width: 100, align: 'center', formatter: (row) => row.queryRewrite === true ? '开' : '关' },
   { prop: 'docCount', label: '文档数', width: 90, align: 'center' },
   { prop: 'status', label: '状态', width: 90, align: 'center', slot: 'status' },
   { prop: 'createTime', label: '创建时间', width: 170 },
@@ -125,6 +135,15 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
     ],
   },
   {
+    field: 'queryRewrite',
+    label: '查询改写',
+    component: 'radio',
+    options: [
+      { label: '开启', value: true },
+      { label: '关闭', value: false },
+    ],
+  },
+  {
     field: 'status',
     label: '状态',
     component: 'radio',
@@ -141,6 +160,7 @@ function openKbAdd(): void {
     chunkOverlap: 100,
     hybridSearch: true,
     rerank: true,
+    queryRewrite: false,
     status: 0,
   });
   kbDialogVisible.value = true;
@@ -159,6 +179,7 @@ async function openKbEdit(row: KnowledgeBaseVO): Promise<void> {
     chunkOverlap: detail.chunkOverlap,
     hybridSearch: detail.hybridSearch ?? true,
     rerank: detail.rerank ?? true,
+    queryRewrite: detail.queryRewrite ?? false,
     status: detail.status,
   });
   kbDialogVisible.value = true;
@@ -179,6 +200,7 @@ async function handleKbSubmit(): Promise<void> {
       chunkOverlap: Number(kbForm.chunkOverlap),
       hybridSearch: kbForm.hybridSearch !== false,
       rerank: kbForm.rerank !== false,
+      queryRewrite: kbForm.queryRewrite === true,
       status: Number(kbForm.status),
     };
     if (isKbEdit.value) {
@@ -484,6 +506,305 @@ function openDocPreview(row: KbDocumentVO): void {
   void loadChunks(row);
 }
 
+/* ================= 检索评测（S66） ================= */
+
+const evalDialogVisible = ref(false);
+const evalLoading = ref(false);
+const evalRows = ref<KbEvalQuestionVO[]>([]);
+
+const evalColumns: YTableColumn<KbEvalQuestionVO>[] = [
+  { type: 'index', label: '#', width: 56, align: 'center' },
+  { prop: 'question', label: '评测问题', minWidth: 240, showOverflowTooltip: true },
+  { prop: 'expectedKeyword', label: '预期命中关键词', minWidth: 160, showOverflowTooltip: true },
+  { prop: 'sort', label: '排序', width: 80, align: 'center', formatter: (row) => String(row.sort ?? 0) },
+];
+
+const evalFormVisible = ref(false);
+const evalConfirmLoading = ref(false);
+const evalFormRef = ref<InstanceType<typeof YForm>>();
+const evalForm = reactive<Record<string, unknown>>({});
+const isEvalEdit = computed(() => !!evalForm.id);
+
+const evalFormSchemas = computed<YFormSchema[]>(() => [
+  {
+    field: 'question',
+    label: '评测问题',
+    component: 'textarea',
+    placeholder: '请输入评测问题',
+    rules: [{ required: true, message: '评测问题不能为空', trigger: 'blur' }],
+    props: { rows: 2 },
+  },
+  {
+    field: 'expectedKeyword',
+    label: '预期关键词',
+    component: 'input',
+    placeholder: '预期命中的关键词（topK 任一结果包含即命中）',
+    rules: [{ required: true, message: '预期关键词不能为空', trigger: 'blur' }],
+  },
+  {
+    field: 'sort',
+    label: '排序',
+    component: 'number',
+    props: { min: 0, step: 1 },
+  },
+]);
+
+const evalRunning = ref(false);
+const evalProgress = ref(0);
+const evalResults = ref<KbEvalCompareVO[]>([]);
+
+const evalResultColumns: YTableColumn<KbEvalCompareVO>[] = [
+  { prop: 'question', label: '评测问题', minWidth: 220, showOverflowTooltip: true },
+  { prop: 'expectedKeyword', label: '预期关键词', width: 140, showOverflowTooltip: true },
+  {
+    prop: 'baselineRank',
+    label: '基线排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.baselineRank > 0 ? `第 ${row.baselineRank} 名` : '未命中'),
+  },
+  {
+    prop: 'rerankRank',
+    label: '重排排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.rerankRank > 0 ? `第 ${row.rerankRank} 名` : '未命中'),
+  },
+  { prop: 'orderChanged', label: '是否改序', width: 90, align: 'center', formatter: (row) => (row.orderChanged ? '是' : '否') },
+];
+
+/** 聚合指标：Hit@K=命中数/题数，MRR=avg(1/rank)，未命中计 0 */
+const evalSummary = computed(() => {
+  const total = evalResults.value.length;
+  if (!total) return null;
+  const baseHit = evalResults.value.filter((r) => r.baselineRank > 0).length;
+  const rerankHit = evalResults.value.filter((r) => r.rerankRank > 0).length;
+  const baseMrr = evalResults.value.reduce((s, r) => s + (r.baselineRank > 0 ? 1 / r.baselineRank : 0), 0) / total;
+  const rerankMrr = evalResults.value.reduce((s, r) => s + (r.rerankRank > 0 ? 1 / r.rerankRank : 0), 0) / total;
+  return {
+    total,
+    baseHit,
+    rerankHit,
+    baseHitRate: baseHit / total,
+    rerankHitRate: rerankHit / total,
+    baseMrr,
+    rerankMrr,
+    changed: evalResults.value.filter((r) => r.orderChanged).length,
+  };
+});
+
+async function openEvalDialog(row: KnowledgeBaseVO): Promise<void> {
+  currentKb.value = row;
+  evalResults.value = [];
+  evalProgress.value = 0;
+  evalDialogVisible.value = true;
+  await Promise.all([loadEvalQuestions(), loadEvalRecords()]);
+}
+
+async function loadEvalQuestions(): Promise<void> {
+  if (!currentKb.value) return;
+  evalLoading.value = true;
+  try {
+    evalRows.value = await listEvalQuestions(currentKb.value.id);
+  } finally {
+    evalLoading.value = false;
+  }
+}
+
+function openEvalAdd(): void {
+  Object.keys(evalForm).forEach((k) => delete evalForm[k]);
+  Object.assign(evalForm, { sort: 0 });
+  evalFormVisible.value = true;
+}
+
+function openEvalEdit(row: KbEvalQuestionVO): void {
+  Object.keys(evalForm).forEach((k) => delete evalForm[k]);
+  Object.assign(evalForm, {
+    id: row.id,
+    question: row.question,
+    expectedKeyword: row.expectedKeyword,
+    sort: row.sort ?? 0,
+  });
+  evalFormVisible.value = true;
+}
+
+async function handleEvalSubmit(): Promise<void> {
+  const valid = await evalFormRef.value?.validate()?.catch(() => false);
+  if (!valid) return;
+  evalConfirmLoading.value = true;
+  try {
+    const body: KbEvalSaveBody = {
+      id: (evalForm.id as string) || undefined,
+      kbId: currentKb.value!.id,
+      question: evalForm.question as string,
+      expectedKeyword: evalForm.expectedKeyword as string,
+      sort: evalForm.sort == null ? 0 : Number(evalForm.sort),
+    };
+    if (isEvalEdit.value) {
+      await updateEvalQuestion(body);
+    } else {
+      await createEvalQuestion(body);
+    }
+    ElMessage.success(isEvalEdit.value ? '修改成功' : '新增成功');
+    evalFormVisible.value = false;
+    await loadEvalQuestions();
+  } finally {
+    evalConfirmLoading.value = false;
+  }
+}
+
+async function handleEvalDelete(row: KbEvalQuestionVO): Promise<void> {
+  await ElMessageBox.confirm(`确定删除评测问题「${row.question}」吗？`, '提示', { type: 'warning' });
+  await deleteEvalQuestion(row.id);
+  ElMessage.success('删除成功');
+  await loadEvalQuestions();
+}
+
+/** 全量跑分：顺序逐题调用 /run，天然支持进度展示；完成后自动落库跑分记录（S67） */
+async function handleRunAllEval(): Promise<void> {
+  if (!evalRows.value.length) {
+    ElMessage.warning('请先添加评测问题');
+    return;
+  }
+  evalRunning.value = true;
+  evalResults.value = [];
+  evalProgress.value = 0;
+  try {
+    for (const q of evalRows.value) {
+      evalResults.value.push(await runEval({ questionId: q.id, topK: 5 }));
+      evalProgress.value += 1;
+    }
+    await saveEvalRunRecord();
+    ElMessage.success('全量跑分完成，结果已保存');
+  } finally {
+    evalRunning.value = false;
+  }
+}
+
+/* ================= 历史跑分记录（S67） ================= */
+
+const evalRecords = ref<KbEvalRecordVO[]>([]);
+const evalRecordsLoading = ref(false);
+
+const evalRecordColumns: YTableColumn<KbEvalRecordVO>[] = [
+  { prop: 'createTime', label: '跑分时间', width: 150 },
+  { prop: 'questionCount', label: '题数', width: 60, align: 'center' },
+  {
+    prop: 'baselineHitRate',
+    label: '基线 Hit',
+    width: 80,
+    align: 'center',
+    formatter: (row) => `${(Number(row.baselineHitRate) * 100).toFixed(1)}%`,
+  },
+  {
+    prop: 'rerankHitRate',
+    label: '重排 Hit',
+    width: 80,
+    align: 'center',
+    formatter: (row) => `${(Number(row.rerankHitRate) * 100).toFixed(1)}%`,
+  },
+  {
+    prop: 'hitDelta',
+    label: 'Hit 差值',
+    width: 80,
+    align: 'center',
+    formatter: (row) => formatDelta(Number(row.rerankHitRate) - Number(row.baselineHitRate), 100, 'pp'),
+  },
+  { prop: 'baselineMrr', label: '基线 MRR', width: 85, align: 'center', formatter: (row) => Number(row.baselineMrr).toFixed(4) },
+  { prop: 'rerankMrr', label: '重排 MRR', width: 85, align: 'center', formatter: (row) => Number(row.rerankMrr).toFixed(4) },
+  {
+    prop: 'mrrDelta',
+    label: 'MRR 差值',
+    width: 85,
+    align: 'center',
+    formatter: (row) => formatDelta(Number(row.rerankMrr) - Number(row.baselineMrr), 1, ''),
+  },
+  {
+    prop: 'orderChangedCount',
+    label: '改序题数',
+    width: 75,
+    align: 'center',
+    formatter: (row) => `${row.orderChangedCount}/${row.questionCount}`,
+  },
+];
+
+const evalDetailVisible = ref(false);
+const evalDetailLoading = ref(false);
+const evalDetailRows = ref<KbEvalRecordItemVO[]>([]);
+const currentRecord = ref<KbEvalRecordVO>();
+
+const evalDetailColumns: YTableColumn<KbEvalRecordItemVO>[] = [
+  { prop: 'question', label: '评测问题', minWidth: 220, showOverflowTooltip: true },
+  { prop: 'expectedKeyword', label: '预期关键词', width: 140, showOverflowTooltip: true },
+  {
+    prop: 'baselineRank',
+    label: '基线排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.baselineRank > 0 ? `第 ${row.baselineRank} 名` : '未命中'),
+  },
+  {
+    prop: 'rerankRank',
+    label: '重排排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.rerankRank > 0 ? `第 ${row.rerankRank} 名` : '未命中'),
+  },
+  { prop: 'orderChanged', label: '是否改序', width: 90, align: 'center', formatter: (row) => (row.orderChanged ? '是' : '否') },
+];
+
+/** 差值展示：正数加 + 前缀 */
+function formatDelta(delta: number, scale: number, unit: string): string {
+  const text = (delta * scale).toFixed(scale === 100 ? 1 : 4);
+  return `${delta >= 0 ? '+' : ''}${text}${unit}`;
+}
+
+async function loadEvalRecords(): Promise<void> {
+  if (!currentKb.value) return;
+  evalRecordsLoading.value = true;
+  try {
+    evalRecords.value = await listEvalRecords(currentKb.value.id);
+  } finally {
+    evalRecordsLoading.value = false;
+  }
+}
+
+/** 跑分完成后一次性提交逐题结果，聚合指标由后端计算落库 */
+async function saveEvalRunRecord(): Promise<void> {
+  const body: KbEvalRecordSaveBody = {
+    kbId: currentKb.value!.id,
+    items: evalResults.value.map((r) => ({
+      questionId: r.questionId,
+      question: r.question,
+      expectedKeyword: r.expectedKeyword,
+      baselineRank: r.baselineRank,
+      rerankRank: r.rerankRank,
+      orderChanged: r.orderChanged,
+    })),
+  };
+  await saveEvalRecord(body);
+  await loadEvalRecords();
+}
+
+async function openEvalRecordDetail(row: KbEvalRecordVO): Promise<void> {
+  currentRecord.value = row;
+  evalDetailRows.value = [];
+  evalDetailVisible.value = true;
+  evalDetailLoading.value = true;
+  try {
+    evalDetailRows.value = await getEvalRecordDetail(row.id);
+  } finally {
+    evalDetailLoading.value = false;
+  }
+}
+
+async function handleEvalRecordDelete(row: KbEvalRecordVO): Promise<void> {
+  await ElMessageBox.confirm(`确定删除「${row.createTime}」这轮跑分记录吗？`, '提示', { type: 'warning' });
+  await deleteEvalRecord(row.id);
+  ElMessage.success('删除成功');
+  await loadEvalRecords();
+}
+
 function formatFileSize(bytes?: number): string {
   if (bytes == null || bytes < 0) return '-';
   if (bytes < 1024) return `${bytes} B`;
@@ -511,11 +832,12 @@ function formatFileSize(bytes?: number): string {
       <template #status="{ row }">
         <DictTag :value="(row as KnowledgeBaseVO).status" :options="sys_common_status" />
       </template>
-      <ElTableColumn label="操作" width="320" align="center" fixed="right">
+      <ElTableColumn label="操作" width="400" align="center" fixed="right">
         <template #default="{ row }">
           <ElButton v-hasPermi="'ai:kb:edit'" link type="primary" @click="openKbEdit(row as KnowledgeBaseVO)">编辑</ElButton>
           <ElButton link type="primary" @click="openDocManage(row as KnowledgeBaseVO)">文档管理</ElButton>
           <ElButton link type="success" @click="openSearchDebug(row as KnowledgeBaseVO)">检索调试</ElButton>
+          <ElButton link type="warning" @click="openEvalDialog(row as KnowledgeBaseVO)">检索评测</ElButton>
           <ElButton v-hasPermi="'ai:kb:delete'" link type="danger" @click="handleKbDelete(row as KnowledgeBaseVO)">删除</ElButton>
         </template>
       </ElTableColumn>
@@ -653,6 +975,135 @@ function formatFileSize(bytes?: number): string {
         </YTable>
       </div>
     </YDialog>
+
+    <!-- 检索评测 -->
+    <YDialog
+      v-model="evalDialogVisible"
+      :title="`${currentKb?.name ?? ''} - 检索评测`"
+      width="1000px"
+      :show-footer="false"
+    >
+      <div class="eval-panel">
+        <div class="eval-panel__bar">
+          <span class="eval-panel__title">评测问题集</span>
+          <ElButton v-hasPermi="'ai:kb:edit'" type="primary" :icon="Plus" @click="openEvalAdd">新增问题</ElButton>
+        </div>
+        <YTable
+          :loading="evalLoading"
+          :data="evalRows"
+          :columns="evalColumns"
+          hide-pagination
+          row-key="id"
+        >
+          <ElTableColumn label="操作" width="140" align="center" fixed="right">
+            <template #default="{ row }">
+              <ElButton v-hasPermi="'ai:kb:edit'" link type="primary" @click="openEvalEdit(row as KbEvalQuestionVO)">编辑</ElButton>
+              <ElButton v-hasPermi="'ai:kb:edit'" link type="danger" @click="handleEvalDelete(row as KbEvalQuestionVO)">删除</ElButton>
+            </template>
+          </ElTableColumn>
+          <template #empty>
+            <span>暂无评测问题，请点击“新增问题”添加</span>
+          </template>
+        </YTable>
+
+        <div class="eval-panel__bar">
+          <span class="eval-panel__title">跑分结果（基线=rerank 关 vs 重排=rerank 开，topK=5）</span>
+          <span v-if="evalRunning" class="eval-panel__progress">跑分中 {{ evalProgress }}/{{ evalRows.length }}…</span>
+          <ElButton type="primary" :loading="evalRunning" @click="handleRunAllEval">全量跑分</ElButton>
+        </div>
+        <div v-if="evalSummary" class="eval-summary">
+          <div class="eval-summary__item">
+            <div class="eval-summary__label">基线 Hit@5</div>
+            <div class="eval-summary__value">{{ (evalSummary.baseHitRate * 100).toFixed(1) }}%</div>
+          </div>
+          <div class="eval-summary__item">
+            <div class="eval-summary__label">重排 Hit@5</div>
+            <div class="eval-summary__value">{{ (evalSummary.rerankHitRate * 100).toFixed(1) }}%</div>
+            <div class="eval-summary__delta" :class="{ 'is-up': evalSummary.rerankHitRate >= evalSummary.baseHitRate }">
+              {{ evalSummary.rerankHitRate >= evalSummary.baseHitRate ? '+' : '' }}{{ ((evalSummary.rerankHitRate - evalSummary.baseHitRate) * 100).toFixed(1) }}pp
+            </div>
+          </div>
+          <div class="eval-summary__item">
+            <div class="eval-summary__label">基线 MRR</div>
+            <div class="eval-summary__value">{{ evalSummary.baseMrr.toFixed(4) }}</div>
+          </div>
+          <div class="eval-summary__item">
+            <div class="eval-summary__label">重排 MRR</div>
+            <div class="eval-summary__value">{{ evalSummary.rerankMrr.toFixed(4) }}</div>
+            <div class="eval-summary__delta" :class="{ 'is-up': evalSummary.rerankMrr >= evalSummary.baseMrr }">
+              {{ evalSummary.rerankMrr >= evalSummary.baseMrr ? '+' : '' }}{{ (evalSummary.rerankMrr - evalSummary.baseMrr).toFixed(4) }}
+            </div>
+          </div>
+          <div class="eval-summary__item">
+            <div class="eval-summary__label">改序题数</div>
+            <div class="eval-summary__value">{{ evalSummary.changed }}/{{ evalSummary.total }}</div>
+          </div>
+        </div>
+        <YTable
+          :loading="evalRunning"
+          :data="evalResults"
+          :columns="evalResultColumns"
+          hide-pagination
+          row-key="questionId"
+        >
+          <template #empty>
+            <span>点击“全量跑分”开始评测</span>
+          </template>
+        </YTable>
+
+        <div class="eval-panel__bar">
+          <span class="eval-panel__title">历史跑分（最近 20 条，指标由后端聚合落库）</span>
+        </div>
+        <YTable
+          :loading="evalRecordsLoading"
+          :data="evalRecords"
+          :columns="evalRecordColumns"
+          hide-pagination
+          row-key="id"
+        >
+          <ElTableColumn label="操作" width="120" align="center" fixed="right">
+            <template #default="{ row }">
+              <ElButton link type="primary" @click="openEvalRecordDetail(row as KbEvalRecordVO)">明细</ElButton>
+              <ElButton v-hasPermi="'ai:kb:edit'" link type="danger" @click="handleEvalRecordDelete(row as KbEvalRecordVO)">删除</ElButton>
+            </template>
+          </ElTableColumn>
+          <template #empty>
+            <span>暂无跑分记录，完成一次全量跑分后自动保存</span>
+          </template>
+        </YTable>
+      </div>
+    </YDialog>
+
+    <!-- 评测问题表单 -->
+    <YDialog
+      v-model="evalFormVisible"
+      :title="isEvalEdit ? '编辑评测问题' : '新增评测问题'"
+      width="480px"
+      :confirm-loading="evalConfirmLoading"
+      @confirm="handleEvalSubmit"
+    >
+      <YForm ref="evalFormRef" v-model="evalForm" :schemas="evalFormSchemas" label-width="100px" />
+    </YDialog>
+
+    <!-- 历史跑分明细 -->
+    <YDialog
+      v-model="evalDetailVisible"
+      :title="`跑分明细 - ${currentRecord?.createTime ?? ''}`"
+      width="800px"
+      :show-footer="false"
+    >
+      <YTable
+        :loading="evalDetailLoading"
+        :data="evalDetailRows"
+        :columns="evalDetailColumns"
+        hide-pagination
+        row-key="id"
+      >
+        <template #empty>
+          <span>该轮跑分暂无明细</span>
+        </template>
+      </YTable>
+    </YDialog>
   </div>
 </template>
 
@@ -713,5 +1164,52 @@ function formatFileSize(bytes?: number): string {
   word-break: break-all;
   font-size: 13px;
   line-height: 1.7;
+}
+.eval-panel__bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 12px 0;
+}
+.eval-panel__title {
+  margin-right: auto;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+.eval-panel__progress {
+  color: var(--el-color-primary);
+  font-size: 13px;
+}
+.eval-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.eval-summary__item {
+  flex: 1;
+  padding: 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  text-align: center;
+}
+.eval-summary__label {
+  margin-bottom: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.eval-summary__value {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  font-size: 20px;
+}
+.eval-summary__delta {
+  margin-top: 2px;
+  color: var(--el-color-danger);
+  font-size: 12px;
+}
+.eval-summary__delta.is-up {
+  color: var(--el-color-success);
 }
 </style>

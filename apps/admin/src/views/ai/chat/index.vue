@@ -1,10 +1,11 @@
 <script setup lang="ts">
 defineOptions({ name: 'AiChat' });
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
+import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
 import { ChatDotRound, Delete, EditPen, Plus, Promotion } from '@element-plus/icons-vue';
 import type { AiChatMessageVO, AiChatReferenceVO, AiConversationVO, AiProviderOptionVO, KbSimpleOptionVO } from '@pivotos/types';
 import { deleteConversation, listConversations, listKbOptions, listMessages, renameConversation, streamChat } from '@/api/ai/chat';
+import { listDocChunks } from '@/api/ai/kb';
 import { listProviderModels, listProviderOptions } from '@/api/ai/provider';
 import MarkdownView from './MarkdownView.vue';
 
@@ -15,6 +16,10 @@ interface LocalMessage {
   content: string;
   /** RAG 引用来源（done 事件回填） */
   references?: AiChatReferenceVO[];
+  /** 查询改写后的实际检索词（meta 事件回填，仅流式当轮有值，S68） */
+  rewrittenQuery?: string;
+  /** 意图路由出局标记（meta 事件回填，仅流式当轮有值，S69） */
+  kbRoutedOut?: boolean;
 }
 
 // ---------- 会话列表 ----------
@@ -162,6 +167,89 @@ async function loadKbOptions(): Promise<void> {
   }
 }
 
+// ---------- 引用原文下钻（S68：按 chunkId 定位完整分块） ----------
+const chunkDialogVisible = ref(false);
+const chunkDialogLoading = ref(false);
+const chunkDialogMeta = ref('');
+const chunkDialogContent = ref('');
+
+async function openChunkSource(reference: AiChatReferenceVO): Promise<void> {
+  if (!reference.docId || !reference.chunkId) return;
+  chunkDialogVisible.value = true;
+  chunkDialogLoading.value = true;
+  chunkDialogContent.value = '';
+  chunkDialogMeta.value = reference.fileName ?? '';
+  try {
+    const chunks = await listDocChunks(reference.docId);
+    const hit = chunks.find((c) => c.id === reference.chunkId);
+    if (hit) {
+      chunkDialogContent.value = hit.content;
+      chunkDialogMeta.value = `${reference.fileName ?? ''} · 第 ${hit.chunkIndex + 1} 块`;
+    } else {
+      chunkDialogContent.value = '未定位到对应分块（文档可能已重建索引）';
+    }
+  } catch {
+    chunkDialogContent.value = '原文加载失败，请稍后重试';
+  } finally {
+    chunkDialogLoading.value = false;
+  }
+}
+
+// ---------- 正文引用联动（S69：点击定位引用面板 + 悬浮预览卡） ----------
+/** 受控展开的引用面板：消息索引 → 是否展开（原生 details 需受控才能在程序化定位时展开） */
+const refExpanded = ref<Record<number, boolean>>({});
+/** 高亮闪烁中的引用条目索引（消息索引-引用序号复合键，动画结束后移除） */
+const flashRef = ref('');
+/** 点击正文 [n]：展开对应引用面板并滚动定位高亮（n 超出引用数静默忽略） */
+function locateCite(msgIndex: number, citeIndex: number): void {
+  const msg = messages.value[msgIndex];
+  if (!msg?.references?.length || citeIndex > msg.references.length) return;
+  refExpanded.value[msgIndex] = true;
+  citePreview.value = null;
+  void nextTick(() => {
+    const el = messageListEl.value?.querySelector<HTMLElement>(
+      `[data-msg-idx="${msgIndex}"][data-ref-idx="${citeIndex}"]`,
+    );
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    flashRef.value = `${msgIndex}-${citeIndex}`;
+    setTimeout(() => {
+      if (flashRef.value === `${msgIndex}-${citeIndex}`) flashRef.value = '';
+    }, 1200);
+  });
+}
+
+/** 悬浮预览卡数据与位置（fixed 定位，数据直取 references[n-1] 不发请求） */
+const citePreview = ref<{ ref: AiChatReferenceVO; x: number; y: number; below: boolean } | null>(null);
+const PREVIEW_WIDTH = 280;
+const PREVIEW_GAP = 8;
+
+function onCiteHover(msgIndex: number, citeIndex: number, rect: { x: number; y: number }): void {
+  const reference = messages.value[msgIndex]?.references?.[citeIndex - 1];
+  if (!reference) return;
+  const half = PREVIEW_WIDTH / 2;
+  citePreview.value = {
+    ref: reference,
+    x: Math.min(Math.max(rect.x, half + 8), window.innerWidth - half - 8),
+    y: rect.y,
+    below: rect.y < 150,
+  };
+}
+
+function onCiteLeave(): void {
+  citePreview.value = null;
+}
+
+/** 预览卡样式：默认在标注上方，贴近视口顶部时翻转到下方；左右夹紧视口 */
+const citePreviewStyle = computed(() => {
+  if (!citePreview.value) return {};
+  const { x, y, below } = citePreview.value;
+  return {
+    left: `${x - PREVIEW_WIDTH / 2}px`,
+    ...(below ? { top: `${y + PREVIEW_GAP + 12}px` } : { bottom: `${window.innerHeight - y + PREVIEW_GAP}px` }),
+  };
+});
+
 // ---------- 流式对话 ----------
 const input = ref('');
 const streaming = ref(false);
@@ -194,6 +282,14 @@ async function handleSend(): Promise<void> {
         if (!activeId.value) {
           activeId.value = meta.conversationId;
           void loadConversations();
+        }
+        // S68：查询改写生效时透出实际检索词
+        if (meta.rewrittenQuery) {
+          assistant.rewrittenQuery = meta.rewrittenQuery;
+        }
+        // S69：意图路由出局——本轮判定无需知识库检索
+        if (meta.kbRoutedOut) {
+          assistant.kbRoutedOut = true;
         }
       },
       onDelta(delta) {
@@ -295,7 +391,7 @@ onMounted(() => {
 
     <!-- 右侧：消息区 + 输入区 -->
     <section v-loading="listLoading" class="ai-chat__main">
-      <div ref="messageListEl" class="ai-chat__messages">
+      <div ref="messageListEl" class="ai-chat__messages" @scroll="onCiteLeave">
         <ElEmpty v-if="messages.length === 0" description="开始新的对话吧" :image-size="120" />
         <div
           v-for="(msg, index) in messages"
@@ -303,35 +399,64 @@ onMounted(() => {
           class="ai-chat__message"
           :class="`ai-chat__message--${msg.role}`"
         >
-          <div class="ai-chat__bubble">
-            <span v-if="msg.role === 'assistant' && !msg.content && streaming" class="ai-chat__typing">
-              正在思考…
-            </span>
-            <MarkdownView v-else-if="msg.role === 'assistant'" :content="msg.content" />
-            <template v-else>{{ msg.content }}</template>
-            <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
-          </div>
-          <!-- RAG 引用来源 -->
-          <div v-if="msg.role === 'assistant' && msg.references?.length" class="ai-chat__references">
-            <details>
-              <summary class="ai-chat__references-summary">
-                引用来源（{{ msg.references.length }}）
-              </summary>
-              <div
-                v-for="(ref, refIdx) in msg.references"
-                :key="refIdx"
-                class="ai-chat__reference"
-              >
-                <div class="ai-chat__reference-header">
-                  <span class="ai-chat__reference-index">[{{ refIdx + 1 }}]</span>
-                  <span v-if="ref.fileName" class="ai-chat__reference-file">{{ ref.fileName }}</span>
-                  <span v-if="ref.score != null" class="ai-chat__reference-score">
-                    相似度 {{ ref.score.toFixed(4) }}
-                  </span>
+          <div class="ai-chat__body">
+            <!-- S69：意图路由出局提示与 S68 改写提示互斥（出局优先） -->
+            <div v-if="msg.role === 'assistant' && msg.kbRoutedOut" class="ai-chat__rewrite-hint">
+              已判断无需知识库检索，本次按通用知识回答
+            </div>
+            <!-- S68：查询改写透明化提示（仅当轮流式有值） -->
+            <div v-else-if="msg.role === 'assistant' && msg.rewrittenQuery" class="ai-chat__rewrite-hint">
+              检索词已智能改写：{{ msg.rewrittenQuery }}
+            </div>
+            <div class="ai-chat__bubble">
+              <span v-if="msg.role === 'assistant' && !msg.content && streaming" class="ai-chat__typing">
+                正在思考…
+              </span>
+              <MarkdownView
+                v-else-if="msg.role === 'assistant'"
+                :content="msg.content"
+                @cite-click="(n: number) => locateCite(index, n)"
+                @cite-hover="(n: number, rect: { x: number; y: number }) => onCiteHover(index, n, rect)"
+                @cite-leave="onCiteLeave"
+              />
+              <template v-else>{{ msg.content }}</template>
+              <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
+            </div>
+            <!-- RAG 引用来源 -->
+            <div v-if="msg.role === 'assistant' && msg.references?.length" class="ai-chat__references">
+              <details :open="refExpanded[index] || undefined">
+                <summary class="ai-chat__references-summary">
+                  引用来源（{{ msg.references.length }}）
+                </summary>
+                <div
+                  v-for="(ref, refIdx) in msg.references"
+                  :key="refIdx"
+                  class="ai-chat__reference"
+                  :class="{ 'is-flash': flashRef === `${index}-${refIdx + 1}` }"
+                  :data-msg-idx="index"
+                  :data-ref-idx="refIdx + 1"
+                >
+                  <div class="ai-chat__reference-header">
+                    <span class="ai-chat__reference-index">[{{ refIdx + 1 }}]</span>
+                    <span v-if="ref.fileName" class="ai-chat__reference-file">{{ ref.fileName }}</span>
+                    <span v-if="ref.kbName" class="ai-chat__reference-kb">{{ ref.kbName }}</span>
+                    <span v-if="ref.score != null" class="ai-chat__reference-score">
+                      相似度 {{ ref.score.toFixed(4) }}
+                    </span>
+                    <ElButton
+                      v-if="ref.docId && ref.chunkId"
+                      class="ai-chat__reference-source"
+                      link
+                      type="primary"
+                      @click="openChunkSource(ref)"
+                    >
+                      查看原文
+                    </ElButton>
+                  </div>
+                  <div class="ai-chat__reference-content">{{ ref.content }}</div>
                 </div>
-                <div class="ai-chat__reference-content">{{ ref.content }}</div>
-              </div>
-            </details>
+              </details>
+            </div>
           </div>
         </div>
       </div>
@@ -393,6 +518,28 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <!-- S68：引用原文下钻弹框（完整分块内容） -->
+    <ElDialog v-model="chunkDialogVisible" title="引用原文" width="640px" destroy-on-close>
+      <div v-loading="chunkDialogLoading" class="ai-chat__chunk-source">
+        <div class="ai-chat__chunk-source-meta">{{ chunkDialogMeta }}</div>
+        <div class="ai-chat__chunk-source-content">{{ chunkDialogContent }}</div>
+      </div>
+    </ElDialog>
+
+    <!-- S69：正文引用悬浮预览卡（fixed 定位，数据直取 references 不发请求） -->
+    <div v-if="citePreview" class="ai-chat__cite-preview" :style="citePreviewStyle">
+      <div class="ai-chat__cite-preview-header">
+        <span v-if="citePreview.ref.fileName" class="ai-chat__cite-preview-file">
+          {{ citePreview.ref.fileName }}
+        </span>
+        <span v-if="citePreview.ref.kbName" class="ai-chat__reference-kb">{{ citePreview.ref.kbName }}</span>
+      </div>
+      <div class="ai-chat__cite-preview-content">{{ citePreview.ref.content }}</div>
+      <div v-if="citePreview.ref.score != null" class="ai-chat__cite-preview-score">
+        相似度 {{ citePreview.ref.score.toFixed(4) }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -498,8 +645,22 @@ onMounted(() => {
   justify-content: flex-start;
 }
 
-.ai-chat__bubble {
+/* S68：气泡+引用整体限宽，改写提示与引用随气泡同宽 */
+.ai-chat__body {
+  display: flex;
+  flex-direction: column;
   max-width: 78%;
+}
+
+/* S68：查询改写提示（气泡上方小字） */
+.ai-chat__rewrite-hint {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.ai-chat__bubble {
+  max-width: 100%;
   padding: 10px 14px;
   border-radius: 10px;
   line-height: 1.6;
@@ -576,7 +737,7 @@ onMounted(() => {
 
 /* ---------- RAG 引用来源 ---------- */
 .ai-chat__references {
-  max-width: 78%;
+  max-width: 100%;
   margin-top: 4px;
   font-size: 12px;
 }
@@ -616,6 +777,22 @@ onMounted(() => {
   font-weight: 500;
 }
 
+/* S68：知识库来源标签 */
+.ai-chat__reference-kb {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-size: 11px;
+}
+
+/* S68：查看原文按钮靠右 */
+.ai-chat__reference-source {
+  margin-left: auto;
+  height: auto;
+  font-size: 12px;
+}
+
 .ai-chat__reference-score {
   color: var(--el-text-color-secondary);
   font-size: 11px;
@@ -626,5 +803,93 @@ onMounted(() => {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ---------- S68 引用原文弹框 ---------- */
+.ai-chat__chunk-source {
+  min-height: 120px;
+}
+
+.ai-chat__chunk-source-meta {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.ai-chat__chunk-source-content {
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- S69 正文引用联动 ---------- */
+/* 点击正文 [n] 定位后条目高亮闪烁（1.2s 后由脚本移除 class） */
+.ai-chat__reference.is-flash {
+  border-left-color: var(--el-color-primary);
+  animation: ai-chat-ref-flash 1.2s ease-out;
+}
+
+@keyframes ai-chat-ref-flash {
+  0%,
+  50% {
+    background: var(--el-color-primary-light-8);
+  }
+
+  100% {
+    background: var(--el-fill-color-lighter);
+  }
+}
+
+/* 悬浮预览卡：fixed 定位跟随标注，宽度与样式计算见 citePreviewStyle */
+.ai-chat__cite-preview {
+  position: fixed;
+  z-index: 100;
+  width: 280px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+  box-shadow: var(--el-box-shadow-light);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.ai-chat__cite-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.ai-chat__cite-preview-file {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
+.ai-chat__cite-preview-content {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.ai-chat__cite-preview-score {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
 }
 </style>

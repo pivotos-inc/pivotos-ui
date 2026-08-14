@@ -11,6 +11,14 @@ export interface AiConversationVO {
 
 /** RAG 引用来源（对齐 ChatReferenceVO） */
 export interface AiChatReferenceVO {
+  /** 来源知识库 ID（S68） */
+  kbId?: string;
+  /** 来源知识库名称（S68） */
+  kbName?: string;
+  /** 来源文档 ID（S68 溯源下钻用） */
+  docId?: string;
+  /** 命中分块 ID（S68 溯源下钻用，空表示未反查到） */
+  chunkId?: string;
   /** 来源文件名 */
   fileName?: string;
   /** 命中的文本块内容（截取前 200 字） */
@@ -47,6 +55,10 @@ export interface AiChatStreamMeta {
   conversationId: string;
   userMessageId: string;
   title: string;
+  /** 查询改写后的实际检索词（仅知识库开启智能改写且生效时下发，S68） */
+  rewrittenQuery?: string;
+  /** 意图路由出局：本轮判定无需知识库检索，按通用知识回答（S69） */
+  kbRoutedOut?: boolean;
 }
 
 /** SSE done 事件载荷（助手消息落库完成） */
@@ -61,6 +73,8 @@ export interface AiChatStreamDone {
 export interface KbSimpleOptionVO {
   id: string;
   name: string;
+  /** 查询改写开关（S68） */
+  queryRewrite?: boolean;
 }
 
 /* ================= AI 供应商配置 ================= */
@@ -185,6 +199,8 @@ export interface KnowledgeBaseVO {
   hybridSearch?: boolean;
   /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
   rerank?: boolean;
+  /** 查询改写开关（检索前 LLM 改写多轮问题，默认关，S68） */
+  queryRewrite?: boolean;
   status: number;
   docCount?: number;
   createTime?: string;
@@ -203,6 +219,8 @@ export interface KnowledgeBaseSaveBody {
   hybridSearch?: boolean;
   /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
   rerank?: boolean;
+  /** 查询改写开关（检索前 LLM 改写多轮问题，默认关，S68） */
+  queryRewrite?: boolean;
   status: number;
 }
 
@@ -276,4 +294,107 @@ export interface KbChunkVO {
   content: string;
   /** 内容MD5（前100字，去重用） */
   contentHash?: string;
+}
+
+/* ================= AI 检索评测（S66） ================= */
+
+/** 检索评测问题视图对象（对齐 KbEvalQuestionVO） */
+export interface KbEvalQuestionVO {
+  id: string;
+  kbId: string;
+  /** 评测问题 */
+  question: string;
+  /** 预期命中关键词（命中=topK 任一结果内容包含该词） */
+  expectedKeyword: string;
+  sort?: number;
+  createTime?: string;
+}
+
+/** 检索评测问题保存请求（对齐 KbEvalSaveRequest；id 为空新增） */
+export interface KbEvalSaveBody {
+  id?: string;
+  kbId: string;
+  question: string;
+  expectedKeyword: string;
+  sort?: number;
+}
+
+/** 检索评测单题跑分请求（对齐 KbEvalRunRequest） */
+export interface KbEvalRunBody {
+  questionId: string;
+  topK?: number;
+}
+
+/** 检索评测单题对比结果（对齐 KbEvalCompareVO） */
+export interface KbEvalCompareVO {
+  questionId: string;
+  question: string;
+  expectedKeyword: string;
+  /** 基线（rerank 关）是否命中 topK */
+  baselineHit: boolean;
+  /** 基线首次命中排名（0=未命中） */
+  baselineRank: number;
+  /** 重排（rerank 开）是否命中 topK */
+  rerankHit: boolean;
+  /** 重排首次命中排名（0=未命中） */
+  rerankRank: number;
+  /** 两配置 topK 内容序列是否变化（改序/换题） */
+  orderChanged: boolean;
+}
+
+/* ================= AI 检索评测跑分记录（S67） ================= */
+
+/** 检索评测跑分记录视图对象（对齐 KbEvalRecordVO，聚合指标后端计算） */
+export interface KbEvalRecordVO {
+  id: string;
+  kbId: string;
+  /** 本轮跑分题数 */
+  questionCount: number;
+  /** 基线命中题数 */
+  baselineHit: number;
+  /** 重排命中题数 */
+  rerankHit: number;
+  /** 基线 Hit@K（0-1） */
+  baselineHitRate: number;
+  /** 重排 Hit@K（0-1） */
+  rerankHitRate: number;
+  /** 基线 MRR */
+  baselineMrr: number;
+  /** 重排 MRR */
+  rerankMrr: number;
+  /** 改序题数 */
+  orderChangedCount: number;
+  /** 跑分时间 */
+  createTime?: string;
+}
+
+/** 检索评测跑分逐题明细视图对象（对齐 KbEvalRecordItemVO，快照） */
+export interface KbEvalRecordItemVO {
+  id: string;
+  recordId: string;
+  /** 原评测问题ID（问题可能已被删除） */
+  questionId?: string;
+  /** 评测问题快照 */
+  question: string;
+  /** 预期命中关键词快照 */
+  expectedKeyword: string;
+  /** 基线首次命中排名（0=未命中） */
+  baselineRank: number;
+  /** 重排首次命中排名（0=未命中） */
+  rerankRank: number;
+  /** 是否改序 */
+  orderChanged: boolean;
+}
+
+/** 检索评测跑分记录保存请求（对齐 KbEvalRecordSaveRequest） */
+export interface KbEvalRecordSaveBody {
+  kbId: string;
+  items: {
+    questionId?: string;
+    question: string;
+    expectedKeyword: string;
+    baselineRank: number;
+    rerankRank: number;
+    orderChanged: boolean;
+  }[];
 }

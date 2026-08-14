@@ -3,6 +3,13 @@ import type {
   KbDocPageQuery,
   KbDocUploadBody,
   KbDocumentVO,
+  KbEvalCompareVO,
+  KbEvalQuestionVO,
+  KbEvalRecordItemVO,
+  KbEvalRecordSaveBody,
+  KbEvalRecordVO,
+  KbEvalRunBody,
+  KbEvalSaveBody,
   KbSearchBody,
   KbSearchResult,
   KnowledgeBaseSaveBody,
@@ -78,4 +85,53 @@ export function listDocChunks(id: string): Promise<KbChunkVO[]> {
 /** 知识库相似性检索调试（管理端验证 RAG 召回） */
 export function searchKb(body: KbSearchBody): Promise<KbSearchResult[]> {
   return request.post<unknown, KbSearchResult[]>('/ai/kb/base/search', body);
+}
+
+/* ---------- 检索评测（S66） ---------- */
+
+/** 评测问题集列表 */
+export function listEvalQuestions(kbId: string): Promise<KbEvalQuestionVO[]> {
+  return request.get<unknown, KbEvalQuestionVO[]>('/ai/kb/eval/question/list', { params: { kbId } });
+}
+
+/** 新增评测问题 */
+export function createEvalQuestion(body: KbEvalSaveBody): Promise<string> {
+  return request.post<unknown, string>('/ai/kb/eval/question', body);
+}
+
+/** 修改评测问题 */
+export function updateEvalQuestion(body: KbEvalSaveBody): Promise<void> {
+  return request.put<unknown, void>('/ai/kb/eval/question', body);
+}
+
+/** 删除评测问题 */
+export function deleteEvalQuestion(id: string): Promise<void> {
+  return request.delete<unknown, void>(`/ai/kb/eval/question/${id}`);
+}
+
+/** 单题跑分（rerank 关/开双配置对比） */
+export function runEval(body: KbEvalRunBody): Promise<KbEvalCompareVO> {
+  return request.post<unknown, KbEvalCompareVO>('/ai/kb/eval/run', body);
+}
+
+/* ---------- 检索评测跑分记录（S67） ---------- */
+
+/** 保存一轮全量跑分记录（聚合指标后端计算） */
+export function saveEvalRecord(body: KbEvalRecordSaveBody): Promise<string> {
+  return request.post<unknown, string>('/ai/kb/eval/record', body);
+}
+
+/** 最近跑分记录列表（最近 20 条） */
+export function listEvalRecords(kbId: string): Promise<KbEvalRecordVO[]> {
+  return request.get<unknown, KbEvalRecordVO[]>('/ai/kb/eval/record/list', { params: { kbId } });
+}
+
+/** 某轮跑分的逐题明细（快照） */
+export function getEvalRecordDetail(id: string): Promise<KbEvalRecordItemVO[]> {
+  return request.get<unknown, KbEvalRecordItemVO[]>(`/ai/kb/eval/record/${id}`);
+}
+
+/** 删除跑分记录（级联删除明细） */
+export function deleteEvalRecord(id: string): Promise<void> {
+  return request.delete<unknown, void>(`/ai/kb/eval/record/${id}`);
 }
