@@ -241,12 +241,29 @@ export interface KbSearchBody {
   topK?: number;
 }
 
-/** 知识库相似性检索结果（对齐 Spring AI Document） */
+/** 知识库相似性检索结果（对齐 KbSearchResultDTO） */
 export interface KbSearchResult {
   /** 命中的文本块内容 */
   content: string;
-  /** 相似度分数（部分 VectorStore 实现可能不返回） */
+  /** RRF 融合分数 */
   score?: number;
+  /** 来源文件名 */
+  fileName?: string;
+  /** 向量通道排名（0 表示未命中，检索调试用） */
+  vectorRank?: number;
+  /** BM25 通道排名（0 表示未命中，检索调试用） */
+  bm25Rank?: number;
   /** 元数据：kb_id / doc_id / file_name 等 */
   metadata?: Record<string, unknown>;
+}
+
+/** 知识库文本块视图对象（对齐 AiKbChunkVO） */
+export interface KbChunkVO {
+  id: string;
+  /** 块序号（从 0 开始） */
+  chunkIndex: number;
+  /** 文本块原文 */
+  content: string;
+  /** 内容MD5（前100字，去重用） */
+  contentHash?: string;
 }
