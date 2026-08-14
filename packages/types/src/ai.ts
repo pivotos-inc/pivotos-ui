@@ -11,6 +11,14 @@ export interface AiConversationVO {
 
 /** RAG 引用来源（对齐 ChatReferenceVO） */
 export interface AiChatReferenceVO {
+  /** 来源知识库 ID（S68） */
+  kbId?: string;
+  /** 来源知识库名称（S68） */
+  kbName?: string;
+  /** 来源文档 ID（S68 溯源下钻用） */
+  docId?: string;
+  /** 命中分块 ID（S68 溯源下钻用，空表示未反查到） */
+  chunkId?: string;
   /** 来源文件名 */
   fileName?: string;
   /** 命中的文本块内容（截取前 200 字） */
@@ -47,6 +55,8 @@ export interface AiChatStreamMeta {
   conversationId: string;
   userMessageId: string;
   title: string;
+  /** 查询改写后的实际检索词（仅知识库开启智能改写且生效时下发，S68） */
+  rewrittenQuery?: string;
 }
 
 /** SSE done 事件载荷（助手消息落库完成） */
@@ -61,6 +71,8 @@ export interface AiChatStreamDone {
 export interface KbSimpleOptionVO {
   id: string;
   name: string;
+  /** 查询改写开关（S68） */
+  queryRewrite?: boolean;
 }
 
 /* ================= AI 供应商配置 ================= */
@@ -185,6 +197,8 @@ export interface KnowledgeBaseVO {
   hybridSearch?: boolean;
   /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
   rerank?: boolean;
+  /** 查询改写开关（检索前 LLM 改写多轮问题，默认关，S68） */
+  queryRewrite?: boolean;
   status: number;
   docCount?: number;
   createTime?: string;
@@ -203,6 +217,8 @@ export interface KnowledgeBaseSaveBody {
   hybridSearch?: boolean;
   /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
   rerank?: boolean;
+  /** 查询改写开关（检索前 LLM 改写多轮问题，默认关，S68） */
+  queryRewrite?: boolean;
   status: number;
 }
 

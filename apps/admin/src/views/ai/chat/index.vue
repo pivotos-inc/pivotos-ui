@@ -1,10 +1,11 @@
 <script setup lang="ts">
 defineOptions({ name: 'AiChat' });
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
+import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
 import { ChatDotRound, Delete, EditPen, Plus, Promotion } from '@element-plus/icons-vue';
 import type { AiChatMessageVO, AiChatReferenceVO, AiConversationVO, AiProviderOptionVO, KbSimpleOptionVO } from '@pivotos/types';
 import { deleteConversation, listConversations, listKbOptions, listMessages, renameConversation, streamChat } from '@/api/ai/chat';
+import { listDocChunks } from '@/api/ai/kb';
 import { listProviderModels, listProviderOptions } from '@/api/ai/provider';
 import MarkdownView from './MarkdownView.vue';
 
@@ -15,6 +16,8 @@ interface LocalMessage {
   content: string;
   /** RAG 引用来源（done 事件回填） */
   references?: AiChatReferenceVO[];
+  /** 查询改写后的实际检索词（meta 事件回填，仅流式当轮有值，S68） */
+  rewrittenQuery?: string;
 }
 
 // ---------- 会话列表 ----------
@@ -162,6 +165,34 @@ async function loadKbOptions(): Promise<void> {
   }
 }
 
+// ---------- 引用原文下钻（S68：按 chunkId 定位完整分块） ----------
+const chunkDialogVisible = ref(false);
+const chunkDialogLoading = ref(false);
+const chunkDialogMeta = ref('');
+const chunkDialogContent = ref('');
+
+async function openChunkSource(reference: AiChatReferenceVO): Promise<void> {
+  if (!reference.docId || !reference.chunkId) return;
+  chunkDialogVisible.value = true;
+  chunkDialogLoading.value = true;
+  chunkDialogContent.value = '';
+  chunkDialogMeta.value = reference.fileName ?? '';
+  try {
+    const chunks = await listDocChunks(reference.docId);
+    const hit = chunks.find((c) => c.id === reference.chunkId);
+    if (hit) {
+      chunkDialogContent.value = hit.content;
+      chunkDialogMeta.value = `${reference.fileName ?? ''} · 第 ${hit.chunkIndex + 1} 块`;
+    } else {
+      chunkDialogContent.value = '未定位到对应分块（文档可能已重建索引）';
+    }
+  } catch {
+    chunkDialogContent.value = '原文加载失败，请稍后重试';
+  } finally {
+    chunkDialogLoading.value = false;
+  }
+}
+
 // ---------- 流式对话 ----------
 const input = ref('');
 const streaming = ref(false);
@@ -194,6 +225,10 @@ async function handleSend(): Promise<void> {
         if (!activeId.value) {
           activeId.value = meta.conversationId;
           void loadConversations();
+        }
+        // S68：查询改写生效时透出实际检索词
+        if (meta.rewrittenQuery) {
+          assistant.rewrittenQuery = meta.rewrittenQuery;
         }
       },
       onDelta(delta) {
@@ -303,35 +338,51 @@ onMounted(() => {
           class="ai-chat__message"
           :class="`ai-chat__message--${msg.role}`"
         >
-          <div class="ai-chat__bubble">
-            <span v-if="msg.role === 'assistant' && !msg.content && streaming" class="ai-chat__typing">
-              正在思考…
-            </span>
-            <MarkdownView v-else-if="msg.role === 'assistant'" :content="msg.content" />
-            <template v-else>{{ msg.content }}</template>
-            <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
-          </div>
-          <!-- RAG 引用来源 -->
-          <div v-if="msg.role === 'assistant' && msg.references?.length" class="ai-chat__references">
-            <details>
-              <summary class="ai-chat__references-summary">
-                引用来源（{{ msg.references.length }}）
-              </summary>
-              <div
-                v-for="(ref, refIdx) in msg.references"
-                :key="refIdx"
-                class="ai-chat__reference"
-              >
-                <div class="ai-chat__reference-header">
-                  <span class="ai-chat__reference-index">[{{ refIdx + 1 }}]</span>
-                  <span v-if="ref.fileName" class="ai-chat__reference-file">{{ ref.fileName }}</span>
-                  <span v-if="ref.score != null" class="ai-chat__reference-score">
-                    相似度 {{ ref.score.toFixed(4) }}
-                  </span>
+          <div class="ai-chat__body">
+            <!-- S68：查询改写透明化提示（仅当轮流式有值） -->
+            <div v-if="msg.role === 'assistant' && msg.rewrittenQuery" class="ai-chat__rewrite-hint">
+              检索词已智能改写：{{ msg.rewrittenQuery }}
+            </div>
+            <div class="ai-chat__bubble">
+              <span v-if="msg.role === 'assistant' && !msg.content && streaming" class="ai-chat__typing">
+                正在思考…
+              </span>
+              <MarkdownView v-else-if="msg.role === 'assistant'" :content="msg.content" />
+              <template v-else>{{ msg.content }}</template>
+              <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
+            </div>
+            <!-- RAG 引用来源 -->
+            <div v-if="msg.role === 'assistant' && msg.references?.length" class="ai-chat__references">
+              <details>
+                <summary class="ai-chat__references-summary">
+                  引用来源（{{ msg.references.length }}）
+                </summary>
+                <div
+                  v-for="(ref, refIdx) in msg.references"
+                  :key="refIdx"
+                  class="ai-chat__reference"
+                >
+                  <div class="ai-chat__reference-header">
+                    <span class="ai-chat__reference-index">[{{ refIdx + 1 }}]</span>
+                    <span v-if="ref.fileName" class="ai-chat__reference-file">{{ ref.fileName }}</span>
+                    <span v-if="ref.kbName" class="ai-chat__reference-kb">{{ ref.kbName }}</span>
+                    <span v-if="ref.score != null" class="ai-chat__reference-score">
+                      相似度 {{ ref.score.toFixed(4) }}
+                    </span>
+                    <ElButton
+                      v-if="ref.docId && ref.chunkId"
+                      class="ai-chat__reference-source"
+                      link
+                      type="primary"
+                      @click="openChunkSource(ref)"
+                    >
+                      查看原文
+                    </ElButton>
+                  </div>
+                  <div class="ai-chat__reference-content">{{ ref.content }}</div>
                 </div>
-                <div class="ai-chat__reference-content">{{ ref.content }}</div>
-              </div>
-            </details>
+              </details>
+            </div>
           </div>
         </div>
       </div>
@@ -393,6 +444,14 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <!-- S68：引用原文下钻弹框（完整分块内容） -->
+    <ElDialog v-model="chunkDialogVisible" title="引用原文" width="640px" destroy-on-close>
+      <div v-loading="chunkDialogLoading" class="ai-chat__chunk-source">
+        <div class="ai-chat__chunk-source-meta">{{ chunkDialogMeta }}</div>
+        <div class="ai-chat__chunk-source-content">{{ chunkDialogContent }}</div>
+      </div>
+    </ElDialog>
   </div>
 </template>
 
@@ -498,8 +557,22 @@ onMounted(() => {
   justify-content: flex-start;
 }
 
-.ai-chat__bubble {
+/* S68：气泡+引用整体限宽，改写提示与引用随气泡同宽 */
+.ai-chat__body {
+  display: flex;
+  flex-direction: column;
   max-width: 78%;
+}
+
+/* S68：查询改写提示（气泡上方小字） */
+.ai-chat__rewrite-hint {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.ai-chat__bubble {
+  max-width: 100%;
   padding: 10px 14px;
   border-radius: 10px;
   line-height: 1.6;
@@ -576,7 +649,7 @@ onMounted(() => {
 
 /* ---------- RAG 引用来源 ---------- */
 .ai-chat__references {
-  max-width: 78%;
+  max-width: 100%;
   margin-top: 4px;
   font-size: 12px;
 }
@@ -616,6 +689,22 @@ onMounted(() => {
   font-weight: 500;
 }
 
+/* S68：知识库来源标签 */
+.ai-chat__reference-kb {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-size: 11px;
+}
+
+/* S68：查看原文按钮靠右 */
+.ai-chat__reference-source {
+  margin-left: auto;
+  height: auto;
+  font-size: 12px;
+}
+
 .ai-chat__reference-score {
   color: var(--el-text-color-secondary);
   font-size: 11px;
@@ -624,6 +713,31 @@ onMounted(() => {
 .ai-chat__reference-content {
   color: var(--el-text-color-secondary);
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- S68 引用原文弹框 ---------- */
+.ai-chat__chunk-source {
+  min-height: 120px;
+}
+
+.ai-chat__chunk-source-meta {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.ai-chat__chunk-source-content {
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-lighter);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }

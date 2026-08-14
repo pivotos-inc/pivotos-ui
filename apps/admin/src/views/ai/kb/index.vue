@@ -66,6 +66,7 @@ const columns: YTableColumn<KnowledgeBaseVO>[] = [
   { prop: 'chunkOverlap', label: '重叠', width: 80, align: 'center' },
   { prop: 'hybridSearch', label: '混合检索', width: 100, align: 'center', formatter: (row) => row.hybridSearch === false ? '关' : '开' },
   { prop: 'rerank', label: '重排', width: 80, align: 'center', formatter: (row) => row.rerank === false ? '关' : '开' },
+  { prop: 'queryRewrite', label: '查询改写', width: 100, align: 'center', formatter: (row) => row.queryRewrite === true ? '开' : '关' },
   { prop: 'docCount', label: '文档数', width: 90, align: 'center' },
   { prop: 'status', label: '状态', width: 90, align: 'center', slot: 'status' },
   { prop: 'createTime', label: '创建时间', width: 170 },
@@ -134,6 +135,15 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
     ],
   },
   {
+    field: 'queryRewrite',
+    label: '查询改写',
+    component: 'radio',
+    options: [
+      { label: '开启', value: true },
+      { label: '关闭', value: false },
+    ],
+  },
+  {
     field: 'status',
     label: '状态',
     component: 'radio',
@@ -150,6 +160,7 @@ function openKbAdd(): void {
     chunkOverlap: 100,
     hybridSearch: true,
     rerank: true,
+    queryRewrite: false,
     status: 0,
   });
   kbDialogVisible.value = true;
@@ -168,6 +179,7 @@ async function openKbEdit(row: KnowledgeBaseVO): Promise<void> {
     chunkOverlap: detail.chunkOverlap,
     hybridSearch: detail.hybridSearch ?? true,
     rerank: detail.rerank ?? true,
+    queryRewrite: detail.queryRewrite ?? false,
     status: detail.status,
   });
   kbDialogVisible.value = true;
@@ -188,6 +200,7 @@ async function handleKbSubmit(): Promise<void> {
       chunkOverlap: Number(kbForm.chunkOverlap),
       hybridSearch: kbForm.hybridSearch !== false,
       rerank: kbForm.rerank !== false,
+      queryRewrite: kbForm.queryRewrite === true,
       status: Number(kbForm.status),
     };
     if (isKbEdit.value) {
