@@ -57,6 +57,8 @@ export interface AiChatStreamMeta {
   title: string;
   /** 查询改写后的实际检索词（仅知识库开启智能改写且生效时下发，S68） */
   rewrittenQuery?: string;
+  /** 意图路由出局：本轮判定无需知识库检索，按通用知识回答（S69） */
+  kbRoutedOut?: boolean;
 }
 
 /** SSE done 事件载荷（助手消息落库完成） */
