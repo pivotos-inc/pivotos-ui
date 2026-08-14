@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SystemLogLogin' });
 import { ElTag } from 'element-plus';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';

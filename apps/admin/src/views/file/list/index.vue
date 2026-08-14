@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'FileList' });
 import { ref } from 'vue';
 import { ElButton, ElMessage, ElMessageBox, ElTableColumn, ElTag, ElUpload } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';

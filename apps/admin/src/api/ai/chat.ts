@@ -5,6 +5,7 @@ import type {
   AiChatStreamDone,
   AiChatStreamMeta,
   AiConversationVO,
+  KbSimpleOptionVO,
 } from '@pivotos/types';
 import { request } from '../request';
 
@@ -33,6 +34,11 @@ export function renameConversation(conversationId: string, title: string): Promi
   return request.put<unknown, void>(`/ai/conversation/${conversationId}`, { title });
 }
 
+/** 知识库下拉选项（对话页 RAG 选择用；kb 插件未部署时返回空数组） */
+export function listKbOptions(): Promise<KbSimpleOptionVO[]> {
+  return request.get<unknown, KbSimpleOptionVO[]>('/ai/chat/kb-options');
+}
+
 /** SSE 流式对话回调（事件序列 meta → delta* → done，异常 error） */
 export interface ChatStreamCallbacks {
   onMeta?: (meta: AiChatStreamMeta) => void;
@@ -54,7 +60,7 @@ export async function streamChat(
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch('/ai/chat/stream', {
+    response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -99,6 +105,13 @@ export async function streamChat(
       for (const frame of frames) {
         dispatchFrame(frame, callbacks);
       }
+    }
+    // 流结束后 flush decoder 并处理残留 buffer：done 是最后一帧，
+    // 其 \n\n 终止符可能未随最终 chunk 送达（代理缓冲 / 连接关闭时序），
+    // 不补处理则 done 事件（含 RAG 引用）丢失，delta 正常因后续帧推入。
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      dispatchFrame(buffer.trim(), callbacks);
     }
   } catch (e) {
     if ((e as Error).name !== 'AbortError') {

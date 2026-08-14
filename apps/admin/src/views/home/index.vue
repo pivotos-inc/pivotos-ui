@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'Home' });
 import { onMounted, ref } from 'vue';
 import { ElCard, ElEmpty, ElIcon, ElSkeleton, ElTag } from 'element-plus';
 import { Bell } from '@element-plus/icons-vue';

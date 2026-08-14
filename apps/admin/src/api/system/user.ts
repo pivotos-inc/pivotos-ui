@@ -69,7 +69,7 @@ export async function importUsersStream(
   const fd = new FormData();
   fd.append('file', file);
 
-  const response = await fetch('/system/user/import/stream', {
+  const response = await fetch('/api/system/user/import/stream', {
     method: 'POST',
     headers: {
       // Sa-Token token-name=Authorization，未配置 token-prefix，发裸值

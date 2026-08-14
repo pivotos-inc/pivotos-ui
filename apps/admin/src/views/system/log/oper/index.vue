@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SystemLogOper' });
 import { ref } from 'vue';
 import { ElButton, ElDescriptions, ElDescriptionsItem, ElTableColumn, ElTag } from 'element-plus';
 import { YDialog, YSearchForm, YTable } from '@pivotos/ui';
