@@ -72,6 +72,8 @@ export interface AiProviderVO {
   code: string;
   baseUrl: string;
   defaultModel?: string;
+  /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
+  embeddingModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -95,6 +97,8 @@ export interface AiApiKeyVO {
   id: string;
   providerId: string;
   label?: string;
+  /** Key 用途（chat=对话, embedding=向量化, all=通用） */
+  purpose?: string;
   keyMasked: string;
   status?: number;
   /** 连续失败次数（健康度：成功清零，达阈值自动停用） */
@@ -110,6 +114,8 @@ export interface AiProviderSaveBody {
   code: string;
   baseUrl: string;
   defaultModel?: string;
+  /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
+  embeddingModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -120,6 +126,8 @@ export interface AiApiKeySaveBody {
   id?: string;
   providerId: string;
   label?: string;
+  /** Key 用途（chat=对话, embedding=向量化, all=通用；默认 all） */
+  purpose?: string;
   apiKey?: string;
   status?: number;
 }
