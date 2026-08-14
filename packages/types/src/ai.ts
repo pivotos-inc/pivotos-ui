@@ -277,3 +277,49 @@ export interface KbChunkVO {
   /** 内容MD5（前100字，去重用） */
   contentHash?: string;
 }
+
+/* ================= AI 检索评测（S66） ================= */
+
+/** 检索评测问题视图对象（对齐 KbEvalQuestionVO） */
+export interface KbEvalQuestionVO {
+  id: string;
+  kbId: string;
+  /** 评测问题 */
+  question: string;
+  /** 预期命中关键词（命中=topK 任一结果内容包含该词） */
+  expectedKeyword: string;
+  sort?: number;
+  createTime?: string;
+}
+
+/** 检索评测问题保存请求（对齐 KbEvalSaveRequest；id 为空新增） */
+export interface KbEvalSaveBody {
+  id?: string;
+  kbId: string;
+  question: string;
+  expectedKeyword: string;
+  sort?: number;
+}
+
+/** 检索评测单题跑分请求（对齐 KbEvalRunRequest） */
+export interface KbEvalRunBody {
+  questionId: string;
+  topK?: number;
+}
+
+/** 检索评测单题对比结果（对齐 KbEvalCompareVO） */
+export interface KbEvalCompareVO {
+  questionId: string;
+  question: string;
+  expectedKeyword: string;
+  /** 基线（rerank 关）是否命中 topK */
+  baselineHit: boolean;
+  /** 基线首次命中排名（0=未命中） */
+  baselineRank: number;
+  /** 重排（rerank 开）是否命中 topK */
+  rerankHit: boolean;
+  /** 重排首次命中排名（0=未命中） */
+  rerankRank: number;
+  /** 两配置 topK 内容序列是否变化（改序/换题） */
+  orderChanged: boolean;
+}
