@@ -74,6 +74,8 @@ export interface AiProviderVO {
   defaultModel?: string;
   /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
   embeddingModel?: string;
+  /** 重排模型名（如 qwen3-rerank，空则不启用重排，S65） */
+  rerankModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -116,6 +118,8 @@ export interface AiProviderSaveBody {
   defaultModel?: string;
   /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
   embeddingModel?: string;
+  /** 重排模型名（如 qwen3-rerank，空则不启用重排，S65） */
+  rerankModel?: string;
   sort?: number;
   status?: number;
   remark?: string;
@@ -179,6 +183,8 @@ export interface KnowledgeBaseVO {
   chunkSize: number;
   chunkOverlap: number;
   hybridSearch?: boolean;
+  /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
+  rerank?: boolean;
   status: number;
   docCount?: number;
   createTime?: string;
@@ -195,6 +201,8 @@ export interface KnowledgeBaseSaveBody {
   chunkSize: number;
   chunkOverlap: number;
   hybridSearch?: boolean;
+  /** 重排开关（RRF 融合后经 reranker 精排，默认开，S65） */
+  rerank?: boolean;
   status: number;
 }
 
@@ -253,6 +261,8 @@ export interface KbSearchResult {
   vectorRank?: number;
   /** BM25 通道排名（0 表示未命中，检索调试用） */
   bm25Rank?: number;
+  /** reranker 重排分数（null 表示未重排，检索调试用，S65） */
+  rerankScore?: number;
   /** 元数据：kb_id / doc_id / file_name 等 */
   metadata?: Record<string, unknown>;
 }
