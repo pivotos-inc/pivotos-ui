@@ -178,6 +178,7 @@ export interface KnowledgeBaseVO {
   embeddingModel?: string;
   chunkSize: number;
   chunkOverlap: number;
+  hybridSearch?: boolean;
   status: number;
   docCount?: number;
   createTime?: string;
@@ -193,6 +194,7 @@ export interface KnowledgeBaseSaveBody {
   embeddingModel?: string;
   chunkSize: number;
   chunkOverlap: number;
+  hybridSearch?: boolean;
   status: number;
 }
 
@@ -209,6 +211,7 @@ export interface KbDocumentVO {
   status: number;
   errorMsg?: string;
   vectorCount?: number;
+  chunkCount?: number;
   createTime?: string;
   updateTime?: string;
 }

@@ -54,6 +54,7 @@ const columns: YTableColumn<KnowledgeBaseVO>[] = [
   { prop: 'embeddingModel', label: 'Embedding 模型', width: 160, formatter: (row) => row.embeddingModel || '-' },
   { prop: 'chunkSize', label: '分块大小', width: 100, align: 'center' },
   { prop: 'chunkOverlap', label: '重叠', width: 80, align: 'center' },
+  { prop: 'hybridSearch', label: '混合检索', width: 100, align: 'center', formatter: (row) => row.hybridSearch === false ? '关' : '开' },
   { prop: 'docCount', label: '文档数', width: 90, align: 'center' },
   { prop: 'status', label: '状态', width: 90, align: 'center', slot: 'status' },
   { prop: 'createTime', label: '创建时间', width: 170 },
@@ -104,6 +105,15 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
     props: { min: 0, step: 1 },
   },
   {
+    field: 'hybridSearch',
+    label: '混合检索',
+    component: 'radio',
+    options: [
+      { label: '开启', value: true },
+      { label: '关闭', value: false },
+    ],
+  },
+  {
     field: 'status',
     label: '状态',
     component: 'radio',
@@ -118,6 +128,7 @@ function openKbAdd(): void {
     vectorStoreType: 'milvus',
     chunkSize: 500,
     chunkOverlap: 100,
+    hybridSearch: true,
     status: 0,
   });
   kbDialogVisible.value = true;
@@ -134,6 +145,7 @@ async function openKbEdit(row: KnowledgeBaseVO): Promise<void> {
     embeddingModel: detail.embeddingModel,
     chunkSize: detail.chunkSize,
     chunkOverlap: detail.chunkOverlap,
+    hybridSearch: detail.hybridSearch ?? true,
     status: detail.status,
   });
   kbDialogVisible.value = true;
@@ -152,6 +164,7 @@ async function handleKbSubmit(): Promise<void> {
       embeddingModel: (kbForm.embeddingModel as string) || undefined,
       chunkSize: Number(kbForm.chunkSize),
       chunkOverlap: Number(kbForm.chunkOverlap),
+      hybridSearch: kbForm.hybridSearch !== false,
       status: Number(kbForm.status),
     };
     if (isKbEdit.value) {
