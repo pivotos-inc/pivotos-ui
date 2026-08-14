@@ -1,6 +1,68 @@
 /**
  * 监控运维类型（S48 2.3-F6/F7：对齐 monitor 插件 ServerInfoVO / CacheInfoVO）
+ * S71：运营工作台/数据大屏聚合类型（对齐 DashboardSummaryVO）
+ * 注：后端 Long 统一序列化为字符串，计数类字段类型为 string | number
  */
+
+/** 趋势点（近 N 日按日聚合） */
+export interface DashboardTrendPoint {
+  /** yyyy-MM-dd */
+  date: string;
+  value: string | number;
+}
+
+/** 系统基础盘统计（对齐 SystemStatsDTO） */
+export interface SystemStatsDTO {
+  userCount: string | number;
+  roleCount: string | number;
+  deptCount: string | number;
+  postCount: string | number;
+  todayLogins: string | number;
+}
+
+/** 工作流实例统计（对齐 WorkflowStatsDTO） */
+export interface WorkflowStatsDTO {
+  totalInstances: string | number;
+  pendingTasks: string | number;
+  /** flow_status 状态码 → 实例数 */
+  statusCounts: Record<string, string | number>;
+}
+
+/** 文件存储统计（对齐 FileStatsDTO） */
+export interface FileStatsDTO {
+  fileCount: string | number;
+  totalBytes: string | number;
+}
+
+/** AI 运营统计（对齐 AiChatStatsDTO） */
+export interface AiChatStatsDTO {
+  conversationCount: string | number;
+  messageCount: string | number;
+  providerCount: string | number;
+  activeKeyCount: string | number;
+  unhealthyKeyCount: string | number;
+  messageTrend: DashboardTrendPoint[];
+}
+
+/** 知识库统计（对齐 KbStatsDTO） */
+export interface KbStatsDTO {
+  baseCount: string | number;
+  documentCount: string | number;
+  chunkCount: string | number;
+  evalRecordCount: string | number;
+}
+
+/** 运营看板聚合（工作台与数据大屏共用，区块降级时为 null） */
+export interface DashboardSummaryVO {
+  onlineUsers: string | number;
+  system: SystemStatsDTO | null;
+  loginTrend: DashboardTrendPoint[] | null;
+  workflow: WorkflowStatsDTO | null;
+  file: FileStatsDTO | null;
+  ai: AiChatStatsDTO | null;
+  kb: KbStatsDTO | null;
+}
+
 
 /** 服务监控快照 */
 export interface ServerInfoVO {

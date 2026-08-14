@@ -14,7 +14,7 @@ async function load(): Promise<void> {
   loading.value = true;
   try {
     info.value = await getCacheInfo();
-  } catch (e) {
+  } catch {
     ElMessage.error('缓存监控数据加载失败');
   } finally {
     loading.value = false;
