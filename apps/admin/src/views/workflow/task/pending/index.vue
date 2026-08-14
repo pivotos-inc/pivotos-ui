@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'WorkflowTaskPending' });
 import { computed, reactive, ref } from 'vue';
 import {
   ElButton,
@@ -89,12 +90,24 @@ const historyVisible = ref(false);
 const historyLoading = ref(false);
 const historyList = ref<WorkflowHisTaskVO[]>([]);
 
+const FLOW_STATUS_LABEL: Record<string, string> = {
+  '0': '待提交', '1': '待审批', '2': '已通过', '3': '自动完成', '4': '已终止',
+  '5': '已作废', '6': '已撤销', '7': '已取回', '8': '已完成', '9': '已退回',
+  '10': '已失效', '11': '已拿回', '12': '已重启', '13': '暂存',
+};
+
+const FLOW_STATUS_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
+  '0': 'info', '1': 'warning', '2': 'success', '3': 'success', '4': 'danger',
+  '5': 'info', '6': 'info', '7': 'info', '8': 'success', '9': 'danger',
+  '10': 'info', '11': 'info', '12': 'warning', '13': 'warning',
+};
+
 const SKIP_TYPE_LABEL: Record<string, string> = {
-  pass: '通过', reject: '驳回', transfer: '转办', depute: '委派', revoke: '撤回', termination: '终止',
+  PASS: '通过', REJECT: '驳回', NONE: '无动作',
 };
 
 const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-  pass: 'success', reject: 'danger', transfer: 'warning', depute: 'warning', revoke: 'info', termination: 'danger',
+  PASS: 'success', REJECT: 'danger', NONE: 'info',
 };
 
 async function openHistory(row: WorkflowTaskVO): Promise<void> {
@@ -123,24 +136,26 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
       @refresh="load"
     >
       <template #flowStatus="{ row }">
-        <ElTag type="warning" disable-transitions>
-          {{ (row as WorkflowTaskVO).flowStatus ?? '待审批' }}
+        <ElTag :type="FLOW_STATUS_TAG[(row as WorkflowTaskVO).flowStatus ?? ''] ?? 'info'" disable-transitions>
+          {{ FLOW_STATUS_LABEL[(row as WorkflowTaskVO).flowStatus ?? ''] ?? (row as WorkflowTaskVO).flowStatus ?? '待审批' }}
         </ElTag>
       </template>
       <ElTableColumn label="操作" width="320" align="center" fixed="right">
         <template #default="{ row }">
-          <ElButton v-hasPermi="'workflow:task:approve'" link type="success" @click="openApprove(row as WorkflowTaskVO, 'pass')">
-            通过
-          </ElButton>
-          <ElButton v-hasPermi="'workflow:task:approve'" link type="danger" @click="openApprove(row as WorkflowTaskVO, 'reject')">
-            驳回
-          </ElButton>
-          <ElButton v-hasPermi="'workflow:task:transfer'" link type="warning" @click="openApprove(row as WorkflowTaskVO, 'transfer')">
-            转办
-          </ElButton>
-          <ElButton v-hasPermi="'workflow:task:depute'" link type="info" @click="openApprove(row as WorkflowTaskVO, 'depute')">
-            委派
-          </ElButton>
+          <template v-if="(row as WorkflowTaskVO).flowStatus === '1'">
+            <ElButton v-hasPermi="'workflow:task:approve'" link type="success" @click="openApprove(row as WorkflowTaskVO, 'pass')">
+              通过
+            </ElButton>
+            <ElButton v-hasPermi="'workflow:task:approve'" link type="danger" @click="openApprove(row as WorkflowTaskVO, 'reject')">
+              驳回
+            </ElButton>
+            <ElButton v-hasPermi="'workflow:task:transfer'" link type="warning" @click="openApprove(row as WorkflowTaskVO, 'transfer')">
+              转办
+            </ElButton>
+            <ElButton v-hasPermi="'workflow:task:depute'" link type="info" @click="openApprove(row as WorkflowTaskVO, 'depute')">
+              委派
+            </ElButton>
+          </template>
           <ElButton link type="primary" @click="openHistory(row as WorkflowTaskVO)">
             历史
           </ElButton>

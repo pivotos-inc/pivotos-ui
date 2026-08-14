@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'MonitorServer' });
 import { onMounted, ref } from 'vue';
 import { ElButton, ElCard, ElCol, ElDescriptions, ElDescriptionsItem, ElMessage, ElProgress, ElRow, ElTable, ElTableColumn } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';

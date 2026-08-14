@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'MessageUser' });
 import { onMounted, ref } from 'vue';
 import { ElButton, ElMessage, ElTableColumn, ElTag } from 'element-plus';
 import { Check, Finished } from '@element-plus/icons-vue';

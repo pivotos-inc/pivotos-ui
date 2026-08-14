@@ -5,6 +5,7 @@ import type {
   AiChatStreamDone,
   AiChatStreamMeta,
   AiConversationVO,
+  KbSimpleOptionVO,
 } from '@pivotos/types';
 import { request } from '../request';
 
@@ -33,6 +34,11 @@ export function renameConversation(conversationId: string, title: string): Promi
   return request.put<unknown, void>(`/ai/conversation/${conversationId}`, { title });
 }
 
+/** 知识库下拉选项（对话页 RAG 选择用；kb 插件未部署时返回空数组） */
+export function listKbOptions(): Promise<KbSimpleOptionVO[]> {
+  return request.get<unknown, KbSimpleOptionVO[]>('/ai/chat/kb-options');
+}
+
 /** SSE 流式对话回调（事件序列 meta → delta* → done，异常 error） */
 export interface ChatStreamCallbacks {
   onMeta?: (meta: AiChatStreamMeta) => void;
@@ -54,7 +60,7 @@ export async function streamChat(
 ): Promise<void> {
   let response: Response;
   try {
-    response = await fetch('/ai/chat/stream', {
+    response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SystemRole' });
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElButton, ElMessage, ElMessageBox, ElTableColumn, ElTree } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';

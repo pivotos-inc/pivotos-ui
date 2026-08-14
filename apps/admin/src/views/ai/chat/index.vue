@@ -1,9 +1,10 @@
 <script setup lang="ts">
+defineOptions({ name: 'AiChat' });
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { ElButton, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus';
 import { ChatDotRound, Delete, EditPen, Plus, Promotion } from '@element-plus/icons-vue';
-import type { AiChatMessageVO, AiConversationVO, AiProviderOptionVO } from '@pivotos/types';
-import { deleteConversation, listConversations, listMessages, renameConversation, streamChat } from '@/api/ai/chat';
+import type { AiChatMessageVO, AiChatReferenceVO, AiConversationVO, AiProviderOptionVO, KbSimpleOptionVO } from '@pivotos/types';
+import { deleteConversation, listConversations, listKbOptions, listMessages, renameConversation, streamChat } from '@/api/ai/chat';
 import { listProviderModels, listProviderOptions } from '@/api/ai/provider';
 import MarkdownView from './MarkdownView.vue';
 
@@ -12,6 +13,8 @@ interface LocalMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
+  /** RAG 引用来源（done 事件回填） */
+  references?: AiChatReferenceVO[];
 }
 
 // ---------- 会话列表 ----------
@@ -31,7 +34,9 @@ async function switchConversation(id: string): Promise<void> {
   listLoading.value = true;
   try {
     const rows: AiChatMessageVO[] = await listMessages(id);
-    messages.value = rows.map((m) => ({ id: m.id, role: m.role, content: m.content }));
+    messages.value = rows.map((m) => ({
+      id: m.id, role: m.role, content: m.content, references: m.references,
+    }));
     scrollToBottom();
   } finally {
     listLoading.value = false;
@@ -144,6 +149,19 @@ function pinRecentModels(providerKey: string, all: string[]): string[] {
   return [...recent, ...all.filter((m) => !recent.includes(m))];
 }
 
+// ---------- 知识库选择（RAG） ----------
+const kbOptions = ref<KbSimpleOptionVO[]>([]);
+/** 选中的知识库 ID 列表（空 = 不使用知识库） */
+const selectedKbIds = ref<string[]>([]);
+
+async function loadKbOptions(): Promise<void> {
+  try {
+    kbOptions.value = await listKbOptions();
+  } catch {
+    /* 知识库插件未部署或接口异常，不阻塞对话 */
+  }
+}
+
 // ---------- 流式对话 ----------
 const input = ref('');
 const streaming = ref(false);
@@ -168,6 +186,7 @@ async function handleSend(): Promise<void> {
       content,
       providerId: providerId.value || undefined,
       model: model.value || undefined,
+      kbIds: selectedKbIds.value.length > 0 ? selectedKbIds.value : undefined,
     },
     {
       onMeta(meta) {
@@ -183,6 +202,10 @@ async function handleSend(): Promise<void> {
       },
       onDone(done) {
         assistant.id = done.messageId;
+        // RAG：回填引用来源
+        if (done.references?.length) {
+          assistant.references = done.references;
+        }
         // 本次实际选用的模型计入「常用」（S45 ④）
         recordRecentModel();
         // 会话 updateTime 变化，刷新排序
@@ -231,6 +254,7 @@ function scrollToBottom(): void {
 onMounted(() => {
   void loadConversations();
   void loadProviders();
+  void loadKbOptions();
 });
 </script>
 
@@ -287,6 +311,28 @@ onMounted(() => {
             <template v-else>{{ msg.content }}</template>
             <span v-if="showCursor(msg, index)" class="ai-chat__cursor" />
           </div>
+          <!-- RAG 引用来源 -->
+          <div v-if="msg.role === 'assistant' && msg.references?.length" class="ai-chat__references">
+            <details>
+              <summary class="ai-chat__references-summary">
+                引用来源（{{ msg.references.length }}）
+              </summary>
+              <div
+                v-for="(ref, refIdx) in msg.references"
+                :key="refIdx"
+                class="ai-chat__reference"
+              >
+                <div class="ai-chat__reference-header">
+                  <span class="ai-chat__reference-index">[{{ refIdx + 1 }}]</span>
+                  <span v-if="ref.fileName" class="ai-chat__reference-file">{{ ref.fileName }}</span>
+                  <span v-if="ref.score != null" class="ai-chat__reference-score">
+                    相似度 {{ ref.score.toFixed(4) }}
+                  </span>
+                </div>
+                <div class="ai-chat__reference-content">{{ ref.content }}</div>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
 
@@ -324,6 +370,20 @@ onMounted(() => {
               :disabled="streaming || !providerId"
             >
               <ElOption v-for="m in pinnedModels" :key="m" :label="m" :value="m" />
+            </ElSelect>
+            <ElSelect
+              v-if="kbOptions.length > 0"
+              v-model="selectedKbIds"
+              class="ai-chat__selector ai-chat__selector--kb"
+              size="small"
+              placeholder="知识库（可选）"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              clearable
+              :disabled="streaming"
+            >
+              <ElOption v-for="kb in kbOptions" :key="kb.id" :label="kb.name" :value="kb.id" />
             </ElSelect>
           </div>
           <ElButton v-if="streaming" @click="handleStop">停止</ElButton>
@@ -508,5 +568,63 @@ onMounted(() => {
 
 .ai-chat__selector--model {
   width: 200px;
+}
+
+.ai-chat__selector--kb {
+  min-width: 160px;
+}
+
+/* ---------- RAG 引用来源 ---------- */
+.ai-chat__references {
+  max-width: 78%;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.ai-chat__references-summary {
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  user-select: none;
+}
+
+.ai-chat__references-summary:hover {
+  color: var(--el-color-primary);
+}
+
+.ai-chat__reference {
+  padding: 6px 8px;
+  margin-top: 4px;
+  border-left: 2px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-lighter);
+  border-radius: 0 4px 4px 0;
+}
+
+.ai-chat__reference-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.ai-chat__reference-index {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.ai-chat__reference-file {
+  color: var(--el-text-color-regular);
+  font-weight: 500;
+}
+
+.ai-chat__reference-score {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.ai-chat__reference-content {
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SystemOnlineUser' });
 import { onMounted, ref } from 'vue';
 import { ElButton, ElMessage, ElMessageBox, ElTableColumn } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';

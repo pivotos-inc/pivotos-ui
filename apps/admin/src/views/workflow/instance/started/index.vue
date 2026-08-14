@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'WorkflowInstance' });
 import { ref } from 'vue';
 import {
   ElButton,
@@ -27,12 +28,20 @@ const searchSchemas: YFormSchema[] = [
 ];
 
 const FLOW_STATUS_TAG: Record<string, { label: string; type: 'info' | 'success' | 'warning' | 'danger' | 'primary' }> = {
-  '0': { label: '待审批', type: 'warning' },
+  '0': { label: '待提交', type: 'info' },
   '1': { label: '审批中', type: 'primary' },
-  '2': { label: '已完成', type: 'success' },
-  '3': { label: '已驳回', type: 'danger' },
-  '4': { label: '已撤回', type: 'info' },
-  '5': { label: '已终止', type: 'danger' },
+  '2': { label: '已通过', type: 'success' },
+  '3': { label: '自动完成', type: 'success' },
+  '4': { label: '已终止', type: 'danger' },
+  '5': { label: '已作废', type: 'info' },
+  '6': { label: '已撤销', type: 'info' },
+  '7': { label: '已取回', type: 'info' },
+  '8': { label: '已完成', type: 'success' },
+  '9': { label: '已退回', type: 'danger' },
+  '10': { label: '已失效', type: 'info' },
+  '11': { label: '已拿回', type: 'info' },
+  '12': { label: '已重启', type: 'warning' },
+  '13': { label: '暂存', type: 'warning' },
 };
 
 const columns: YTableColumn<WorkflowInstanceVO>[] = [
@@ -64,11 +73,11 @@ const historyLoading = ref(false);
 const historyList = ref<WorkflowHisTaskVO[]>([]);
 
 const SKIP_TYPE_LABEL: Record<string, string> = {
-  pass: '通过', reject: '驳回', transfer: '转办', depute: '委派', revoke: '撤回', termination: '终止',
+  PASS: '通过', REJECT: '驳回', NONE: '无动作',
 };
 
 const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-  pass: 'success', reject: 'danger', transfer: 'warning', depute: 'warning', revoke: 'info', termination: 'danger',
+  PASS: 'success', REJECT: 'danger', NONE: 'info',
 };
 
 async function openHistory(row: WorkflowInstanceVO): Promise<void> {

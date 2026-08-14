@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'WorkflowTaskCompleted' });
 import { ref } from 'vue';
 import {
   ElButton,
@@ -24,11 +25,11 @@ const searchSchemas: YFormSchema[] = [
 ];
 
 const SKIP_TYPE_LABEL: Record<string, string> = {
-  pass: '通过', reject: '驳回', transfer: '转办', depute: '委派', revoke: '撤回', termination: '终止',
+  PASS: '通过', REJECT: '驳回', NONE: '无动作',
 };
 
 const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-  pass: 'success', reject: 'danger', transfer: 'warning', depute: 'warning', revoke: 'info', termination: 'danger',
+  PASS: 'success', REJECT: 'danger', NONE: 'info',
 };
 
 const columns: YTableColumn<WorkflowHisTaskVO>[] = [

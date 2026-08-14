@@ -57,6 +57,7 @@ export interface WorkflowTaskVO {
   instanceId: string;
   flowName: string;
   businessId?: string;
+  businessName?: string;
   nodeCode?: string;
   nodeName?: string;
   nodeType?: number;

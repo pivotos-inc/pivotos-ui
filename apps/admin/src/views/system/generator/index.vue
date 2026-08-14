@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'ToolGenerator' });
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElButton, ElInput, ElMessage, ElMessageBox, ElSwitch, ElTableColumn, ElTabPane, ElTabs } from 'element-plus';
 import { YTable, YForm, YDialog } from '@pivotos/ui';

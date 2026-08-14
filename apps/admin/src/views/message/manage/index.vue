@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'MessageManage' });
 import { computed, reactive, ref } from 'vue';
 import { ElButton, ElMessage, ElTableColumn } from 'element-plus';
 import { Promotion } from '@element-plus/icons-vue';

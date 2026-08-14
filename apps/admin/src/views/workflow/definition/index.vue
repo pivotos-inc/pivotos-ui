@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ElButton, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
+defineOptions({ name: 'WorkflowDefinition' });
+import { ref } from 'vue';
+import { ElButton, ElDialog, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
@@ -9,6 +11,7 @@ import {
   publishDefinition,
   toggleActivity,
 } from '@/api/workflow/definition';
+import { useUserStore } from '@/stores/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -58,20 +61,44 @@ const columns: YTableColumn<FlowDefinitionVO>[] = [
   { prop: 'updateTime', label: '更新时间', width: 170 },
 ];
 
-// ---------- 操作 ----------
+// ---------- 设计器（iframe 内嵌） ----------
+const designerVisible = ref(false);
+const designerUrl = ref('');
+const designerTitle = ref('流程设计器');
 
-/** 打开 WarmFlow 内置设计器（新标签页） */
+/** 同步 token 到 WarmFlow 设计器期望的 localStorage key */
+function syncWarmFlowToken(): void {
+  const { token } = useUserStore();
+  if (token) {
+    localStorage.setItem('Authorization', token);
+  }
+}
+
+/** 打开 WarmFlow 内置设计器（编辑已有定义） */
 function openDesigner(row: FlowDefinitionVO): void {
-  // WarmFlow 设计器 URL：/warm-flow-ui/index.html#/design?id=xxx
-  const url = `/warm-flow-ui/index.html#/design?id=${row.id}`;
-  window.open(url, '_blank');
+  syncWarmFlowToken();
+  designerTitle.value = `设计流程 - ${row.flowName}`;
+  // 注意：query 参数必须在 # 之前，WarmFlow SPA 用 location.search 解析
+  designerUrl.value = `/api/warm-flow-ui/index.html?id=${row.id}#/design`;
+  designerVisible.value = true;
 }
 
-/** 打开 WarmFlow 新建设计器（新标签页） */
+/** 打开 WarmFlow 新建设计器 */
 function openDesignerCreate(): void {
-  const url = '/warm-flow-ui/index.html#/design';
-  window.open(url, '_blank');
+  syncWarmFlowToken();
+  designerTitle.value = '新建流程';
+  designerUrl.value = '/api/warm-flow-ui/index.html#/design';
+  designerVisible.value = true;
 }
+
+function onDesignerClose(): void {
+  designerVisible.value = false;
+  designerUrl.value = '';
+  // 关闭设计器后刷新列表（可能保存了新定义）
+  load();
+}
+
+// ---------- 操作 ----------
 
 async function handlePublish(row: FlowDefinitionVO): Promise<void> {
   await ElMessageBox.confirm(`确定发布流程「${row.flowName}」吗？`, '提示', { type: 'warning' });
@@ -165,6 +192,22 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
       </ElTableColumn>
     </YTable>
   </div>
+
+  <!-- WarmFlow 设计器 iframe 弹窗 -->
+  <ElDialog
+    v-model="designerVisible"
+    :title="designerTitle"
+    fullscreen
+    destroy-on-close
+    @close="onDesignerClose"
+  >
+    <iframe
+      v-if="designerUrl"
+      :src="designerUrl"
+      class="designer-iframe"
+      frameborder="0"
+    />
+  </ElDialog>
 </template>
 
 <style scoped>
@@ -172,5 +215,11 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
+}
+
+.designer-iframe {
+  width: 100%;
+  height: calc(100vh - 120px);
+  border: none;
 }
 </style>

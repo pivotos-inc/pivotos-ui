@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'ToolJobLog' });
 import { ref } from 'vue';
 import {
   ElButton,

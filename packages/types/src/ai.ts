@@ -9,12 +9,24 @@ export interface AiConversationVO {
   updateTime?: string;
 }
 
+/** RAG 引用来源（对齐 ChatReferenceVO） */
+export interface AiChatReferenceVO {
+  /** 来源文件名 */
+  fileName?: string;
+  /** 命中的文本块内容（截取前 200 字） */
+  content: string;
+  /** 相似度分数 */
+  score?: number;
+}
+
 /** AI 对话消息视图对象（对齐 ChatMessageVO） */
 export interface AiChatMessageVO {
   id: string;
   conversationId: string;
   role: 'user' | 'assistant';
   content: string;
+  /** RAG 引用来源（仅 assistant 消息且使用了知识库时有值） */
+  references?: AiChatReferenceVO[];
   createTime?: string;
 }
 
@@ -26,6 +38,8 @@ export interface AiChatSendBody {
   providerId?: string;
   /** 模型名（空 = 供应商默认模型） */
   model?: string;
+  /** RAG：关联的知识库 ID 列表（空 = 不使用知识库） */
+  kbIds?: string[];
 }
 
 /** SSE meta 事件载荷（流开始时下发会话与用户消息定位信息） */
@@ -39,6 +53,14 @@ export interface AiChatStreamMeta {
 export interface AiChatStreamDone {
   conversationId: string;
   messageId: string;
+  /** RAG 引用来源（仅使用了知识库时有值） */
+  references?: AiChatReferenceVO[];
+}
+
+/** 知识库下拉选项（对齐 KbOptionDTO，对话页选择知识库用） */
+export interface KbSimpleOptionVO {
+  id: string;
+  name: string;
 }
 
 /* ================= AI 供应商配置 ================= */
@@ -132,4 +154,88 @@ export interface CodingSessionVO {
 /** AI Coding 解析请求体（对齐 CodingRequest） */
 export interface CodingParseBody {
   description: string;
+}
+
+/* ================= AI 知识库（S58 RAG） ================= */
+
+/** 向量存储类型 */
+export type KbVectorStoreType = 'simple' | 'milvus' | 'pgvector' | 'qdrant';
+
+/** 知识库视图对象（对齐 KnowledgeBaseVO） */
+export interface KnowledgeBaseVO {
+  id: string;
+  name: string;
+  description?: string;
+  vectorStoreType: KbVectorStoreType;
+  embeddingModel?: string;
+  chunkSize: number;
+  chunkOverlap: number;
+  status: number;
+  docCount?: number;
+  createTime?: string;
+  updateTime?: string;
+}
+
+/** 知识库保存请求（对齐 KbBaseSaveRequest；id 为空表示新增） */
+export interface KnowledgeBaseSaveBody {
+  id?: string;
+  name: string;
+  description?: string;
+  vectorStoreType: KbVectorStoreType;
+  embeddingModel?: string;
+  chunkSize: number;
+  chunkOverlap: number;
+  status: number;
+}
+
+/** 知识库文档视图对象（对齐 KbDocumentVO） */
+export interface KbDocumentVO {
+  id: string;
+  kbId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType?: string;
+  fileSize?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  status: number;
+  errorMsg?: string;
+  vectorCount?: number;
+  createTime?: string;
+  updateTime?: string;
+}
+
+/** 知识库文档分页查询（对齐 KbDocPageQuery） */
+export interface KbDocPageQuery {
+  pageNum?: number;
+  pageSize?: number;
+  kbId: string;
+  fileName?: string;
+  status?: number | '';
+}
+
+/** 知识库文档上传请求（对齐 KbDocUploadRequest） */
+export interface KbDocUploadBody {
+  kbId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType?: string;
+  fileSize?: number;
+}
+
+/** 知识库相似性检索请求（对齐 KbSearchRequest） */
+export interface KbSearchBody {
+  kbId: string;
+  query: string;
+  topK?: number;
+}
+
+/** 知识库相似性检索结果（对齐 Spring AI Document） */
+export interface KbSearchResult {
+  /** 命中的文本块内容 */
+  content: string;
+  /** 相似度分数（部分 VectorStore 实现可能不返回） */
+  score?: number;
+  /** 元数据：kb_id / doc_id / file_name 等 */
+  metadata?: Record<string, unknown>;
 }

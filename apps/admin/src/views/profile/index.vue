@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'Profile' });
 import { computed, reactive, ref } from 'vue';
 import { ElAvatar, ElButton, ElDescriptions, ElDescriptionsItem, ElMessage, ElTag } from 'element-plus';
 import { Lock, User } from '@element-plus/icons-vue';

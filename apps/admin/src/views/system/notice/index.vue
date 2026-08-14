@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'SystemNotice' });
 import { computed, onBeforeUnmount, reactive, ref, shallowRef } from 'vue';
 import { ElButton, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';

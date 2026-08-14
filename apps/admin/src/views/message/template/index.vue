@@ -1,4 +1,5 @@
 <script setup lang="ts">
+defineOptions({ name: 'MessageTemplate' });
 import { computed, reactive, ref } from 'vue';
 import { ElButton, ElMessage, ElMessageBox, ElTableColumn } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';

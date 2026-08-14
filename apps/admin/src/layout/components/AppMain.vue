@@ -11,11 +11,9 @@ const cachedViews = computed(() => tagsViewStore.cachedViews);
 <template>
   <main class="app-main">
     <RouterView v-slot="{ Component, route }">
-      <Transition name="fade-transform" mode="out-in">
-        <KeepAlive :include="cachedViews">
-          <component :is="Component" :key="route.fullPath" />
-        </KeepAlive>
-      </Transition>
+      <KeepAlive :include="cachedViews">
+        <component :is="Component" :key="route.name ?? route.fullPath" />
+      </KeepAlive>
     </RouterView>
   </main>
 </template>
@@ -25,20 +23,5 @@ const cachedViews = computed(() => tagsViewStore.cachedViews);
   flex: 1;
   padding: var(--y-content-padding);
   overflow: auto;
-}
-
-.fade-transform-enter-active,
-.fade-transform-leave-active {
-  transition: all 0.2s ease;
-}
-
-.fade-transform-enter-from {
-  opacity: 0;
-  transform: translateX(8px);
-}
-
-.fade-transform-leave-to {
-  opacity: 0;
-  transform: translateX(-8px);
 }
 </style>
