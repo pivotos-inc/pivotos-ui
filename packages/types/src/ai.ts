@@ -323,3 +323,60 @@ export interface KbEvalCompareVO {
   /** 两配置 topK 内容序列是否变化（改序/换题） */
   orderChanged: boolean;
 }
+
+/* ================= AI 检索评测跑分记录（S67） ================= */
+
+/** 检索评测跑分记录视图对象（对齐 KbEvalRecordVO，聚合指标后端计算） */
+export interface KbEvalRecordVO {
+  id: string;
+  kbId: string;
+  /** 本轮跑分题数 */
+  questionCount: number;
+  /** 基线命中题数 */
+  baselineHit: number;
+  /** 重排命中题数 */
+  rerankHit: number;
+  /** 基线 Hit@K（0-1） */
+  baselineHitRate: number;
+  /** 重排 Hit@K（0-1） */
+  rerankHitRate: number;
+  /** 基线 MRR */
+  baselineMrr: number;
+  /** 重排 MRR */
+  rerankMrr: number;
+  /** 改序题数 */
+  orderChangedCount: number;
+  /** 跑分时间 */
+  createTime?: string;
+}
+
+/** 检索评测跑分逐题明细视图对象（对齐 KbEvalRecordItemVO，快照） */
+export interface KbEvalRecordItemVO {
+  id: string;
+  recordId: string;
+  /** 原评测问题ID（问题可能已被删除） */
+  questionId?: string;
+  /** 评测问题快照 */
+  question: string;
+  /** 预期命中关键词快照 */
+  expectedKeyword: string;
+  /** 基线首次命中排名（0=未命中） */
+  baselineRank: number;
+  /** 重排首次命中排名（0=未命中） */
+  rerankRank: number;
+  /** 是否改序 */
+  orderChanged: boolean;
+}
+
+/** 检索评测跑分记录保存请求（对齐 KbEvalRecordSaveRequest） */
+export interface KbEvalRecordSaveBody {
+  kbId: string;
+  items: {
+    questionId?: string;
+    question: string;
+    expectedKeyword: string;
+    baselineRank: number;
+    rerankRank: number;
+    orderChanged: boolean;
+  }[];
+}

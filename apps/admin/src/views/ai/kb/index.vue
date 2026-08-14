@@ -6,20 +6,24 @@ import { Plus } from '@element-plus/icons-vue';
 import { YDialog, YForm, YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormOption, YFormSchema, YTableColumn } from '@pivotos/ui';
 import { DictTag, FileUpload } from '@pivotos/components';
-import type { KbChunkVO, KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbEvalCompareVO, KbEvalQuestionVO, KbEvalSaveBody, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
+import type { KbChunkVO, KbDocPageQuery, KbDocUploadBody, KbDocumentVO, KbEvalCompareVO, KbEvalQuestionVO, KbEvalRecordItemVO, KbEvalRecordSaveBody, KbEvalRecordVO, KbEvalSaveBody, KbSearchBody, KbSearchResult, KnowledgeBaseSaveBody, KnowledgeBaseVO } from '@pivotos/types';
 import { useDict, useTablePage } from '@/hooks';
 import {
   createEvalQuestion,
   createKnowledgeBase,
   deleteEvalQuestion,
+  deleteEvalRecord,
   deleteKnowledgeBase,
   deleteKbDoc,
+  getEvalRecordDetail,
   getKnowledgeBase,
   listDocChunks,
   listEvalQuestions,
+  listEvalRecords,
   pageKbDocs,
   reindexKbDoc,
   runEval,
+  saveEvalRecord,
   searchKb,
   updateEvalQuestion,
   updateKnowledgeBase,
@@ -581,7 +585,7 @@ async function openEvalDialog(row: KnowledgeBaseVO): Promise<void> {
   evalResults.value = [];
   evalProgress.value = 0;
   evalDialogVisible.value = true;
-  await loadEvalQuestions();
+  await Promise.all([loadEvalQuestions(), loadEvalRecords()]);
 }
 
 async function loadEvalQuestions(): Promise<void> {
@@ -643,7 +647,7 @@ async function handleEvalDelete(row: KbEvalQuestionVO): Promise<void> {
   await loadEvalQuestions();
 }
 
-/** 全量跑分：顺序逐题调用 /run，天然支持进度展示 */
+/** 全量跑分：顺序逐题调用 /run，天然支持进度展示；完成后自动落库跑分记录（S67） */
 async function handleRunAllEval(): Promise<void> {
   if (!evalRows.value.length) {
     ElMessage.warning('请先添加评测问题');
@@ -657,10 +661,135 @@ async function handleRunAllEval(): Promise<void> {
       evalResults.value.push(await runEval({ questionId: q.id, topK: 5 }));
       evalProgress.value += 1;
     }
-    ElMessage.success('全量跑分完成');
+    await saveEvalRunRecord();
+    ElMessage.success('全量跑分完成，结果已保存');
   } finally {
     evalRunning.value = false;
   }
+}
+
+/* ================= 历史跑分记录（S67） ================= */
+
+const evalRecords = ref<KbEvalRecordVO[]>([]);
+const evalRecordsLoading = ref(false);
+
+const evalRecordColumns: YTableColumn<KbEvalRecordVO>[] = [
+  { prop: 'createTime', label: '跑分时间', width: 150 },
+  { prop: 'questionCount', label: '题数', width: 60, align: 'center' },
+  {
+    prop: 'baselineHitRate',
+    label: '基线 Hit',
+    width: 80,
+    align: 'center',
+    formatter: (row) => `${(Number(row.baselineHitRate) * 100).toFixed(1)}%`,
+  },
+  {
+    prop: 'rerankHitRate',
+    label: '重排 Hit',
+    width: 80,
+    align: 'center',
+    formatter: (row) => `${(Number(row.rerankHitRate) * 100).toFixed(1)}%`,
+  },
+  {
+    prop: 'hitDelta',
+    label: 'Hit 差值',
+    width: 80,
+    align: 'center',
+    formatter: (row) => formatDelta(Number(row.rerankHitRate) - Number(row.baselineHitRate), 100, 'pp'),
+  },
+  { prop: 'baselineMrr', label: '基线 MRR', width: 85, align: 'center', formatter: (row) => Number(row.baselineMrr).toFixed(4) },
+  { prop: 'rerankMrr', label: '重排 MRR', width: 85, align: 'center', formatter: (row) => Number(row.rerankMrr).toFixed(4) },
+  {
+    prop: 'mrrDelta',
+    label: 'MRR 差值',
+    width: 85,
+    align: 'center',
+    formatter: (row) => formatDelta(Number(row.rerankMrr) - Number(row.baselineMrr), 1, ''),
+  },
+  {
+    prop: 'orderChangedCount',
+    label: '改序题数',
+    width: 75,
+    align: 'center',
+    formatter: (row) => `${row.orderChangedCount}/${row.questionCount}`,
+  },
+];
+
+const evalDetailVisible = ref(false);
+const evalDetailLoading = ref(false);
+const evalDetailRows = ref<KbEvalRecordItemVO[]>([]);
+const currentRecord = ref<KbEvalRecordVO>();
+
+const evalDetailColumns: YTableColumn<KbEvalRecordItemVO>[] = [
+  { prop: 'question', label: '评测问题', minWidth: 220, showOverflowTooltip: true },
+  { prop: 'expectedKeyword', label: '预期关键词', width: 140, showOverflowTooltip: true },
+  {
+    prop: 'baselineRank',
+    label: '基线排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.baselineRank > 0 ? `第 ${row.baselineRank} 名` : '未命中'),
+  },
+  {
+    prop: 'rerankRank',
+    label: '重排排名',
+    width: 90,
+    align: 'center',
+    formatter: (row) => (row.rerankRank > 0 ? `第 ${row.rerankRank} 名` : '未命中'),
+  },
+  { prop: 'orderChanged', label: '是否改序', width: 90, align: 'center', formatter: (row) => (row.orderChanged ? '是' : '否') },
+];
+
+/** 差值展示：正数加 + 前缀 */
+function formatDelta(delta: number, scale: number, unit: string): string {
+  const text = (delta * scale).toFixed(scale === 100 ? 1 : 4);
+  return `${delta >= 0 ? '+' : ''}${text}${unit}`;
+}
+
+async function loadEvalRecords(): Promise<void> {
+  if (!currentKb.value) return;
+  evalRecordsLoading.value = true;
+  try {
+    evalRecords.value = await listEvalRecords(currentKb.value.id);
+  } finally {
+    evalRecordsLoading.value = false;
+  }
+}
+
+/** 跑分完成后一次性提交逐题结果，聚合指标由后端计算落库 */
+async function saveEvalRunRecord(): Promise<void> {
+  const body: KbEvalRecordSaveBody = {
+    kbId: currentKb.value!.id,
+    items: evalResults.value.map((r) => ({
+      questionId: r.questionId,
+      question: r.question,
+      expectedKeyword: r.expectedKeyword,
+      baselineRank: r.baselineRank,
+      rerankRank: r.rerankRank,
+      orderChanged: r.orderChanged,
+    })),
+  };
+  await saveEvalRecord(body);
+  await loadEvalRecords();
+}
+
+async function openEvalRecordDetail(row: KbEvalRecordVO): Promise<void> {
+  currentRecord.value = row;
+  evalDetailRows.value = [];
+  evalDetailVisible.value = true;
+  evalDetailLoading.value = true;
+  try {
+    evalDetailRows.value = await getEvalRecordDetail(row.id);
+  } finally {
+    evalDetailLoading.value = false;
+  }
+}
+
+async function handleEvalRecordDelete(row: KbEvalRecordVO): Promise<void> {
+  await ElMessageBox.confirm(`确定删除「${row.createTime}」这轮跑分记录吗？`, '提示', { type: 'warning' });
+  await deleteEvalRecord(row.id);
+  ElMessage.success('删除成功');
+  await loadEvalRecords();
 }
 
 function formatFileSize(bytes?: number): string {
@@ -908,6 +1037,27 @@ function formatFileSize(bytes?: number): string {
             <span>点击“全量跑分”开始评测</span>
           </template>
         </YTable>
+
+        <div class="eval-panel__bar">
+          <span class="eval-panel__title">历史跑分（最近 20 条，指标由后端聚合落库）</span>
+        </div>
+        <YTable
+          :loading="evalRecordsLoading"
+          :data="evalRecords"
+          :columns="evalRecordColumns"
+          hide-pagination
+          row-key="id"
+        >
+          <ElTableColumn label="操作" width="120" align="center" fixed="right">
+            <template #default="{ row }">
+              <ElButton link type="primary" @click="openEvalRecordDetail(row as KbEvalRecordVO)">明细</ElButton>
+              <ElButton v-hasPermi="'ai:kb:edit'" link type="danger" @click="handleEvalRecordDelete(row as KbEvalRecordVO)">删除</ElButton>
+            </template>
+          </ElTableColumn>
+          <template #empty>
+            <span>暂无跑分记录，完成一次全量跑分后自动保存</span>
+          </template>
+        </YTable>
       </div>
     </YDialog>
 
@@ -920,6 +1070,26 @@ function formatFileSize(bytes?: number): string {
       @confirm="handleEvalSubmit"
     >
       <YForm ref="evalFormRef" v-model="evalForm" :schemas="evalFormSchemas" label-width="100px" />
+    </YDialog>
+
+    <!-- 历史跑分明细 -->
+    <YDialog
+      v-model="evalDetailVisible"
+      :title="`跑分明细 - ${currentRecord?.createTime ?? ''}`"
+      width="800px"
+      :show-footer="false"
+    >
+      <YTable
+        :loading="evalDetailLoading"
+        :data="evalDetailRows"
+        :columns="evalDetailColumns"
+        hide-pagination
+        row-key="id"
+      >
+        <template #empty>
+          <span>该轮跑分暂无明细</span>
+        </template>
+      </YTable>
     </YDialog>
   </div>
 </template>
