@@ -12,6 +12,9 @@ import type { AiChartSpecVO } from '@pivotos/types';
 import { generateAiChart } from '@/api/monitor/dashboard';
 import BaseChart from '@/components/BaseChart.vue';
 
+/** dark：大屏暗色容器内使用（S73 F2），图表与提示文字走暗色样式 */
+const props = defineProps<{ dark?: boolean }>();
+
 const question = ref('');
 const loading = ref(false);
 const spec = ref<AiChartSpecVO>();
@@ -79,7 +82,7 @@ async function generate(): Promise<void> {
 </script>
 
 <template>
-  <div class="ai-chart">
+  <div class="ai-chart" :class="{ 'ai-chart--dark': props.dark }">
     <div class="ai-chart__input-row">
       <ElInput
         v-model="question"
@@ -95,7 +98,7 @@ async function generate(): Promise<void> {
     </div>
 
     <div class="ai-chart__box">
-      <BaseChart v-if="chartOption" :option="chartOption" />
+      <BaseChart v-if="chartOption" :option="chartOption" :dark="props.dark" />
       <div v-else-if="loading" class="ai-chart__hint">AI 正在分析数据并生成图表…</div>
       <div v-else-if="errorMsg" class="ai-chart__hint ai-chart__hint--error">{{ errorMsg }}</div>
       <ElEmpty v-else description="输入一句话，AI 帮你把运营数据画成图表" :image-size="60" />
@@ -137,5 +140,14 @@ async function generate(): Promise<void> {
   margin-top: 8px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+/* 暗色容器（大屏 Drawer，S73 F2）：提示与说明文字走暗色系 */
+.ai-chart--dark .ai-chart__hint {
+  color: #9aa7bd;
+}
+
+.ai-chart--dark .ai-chart__explanation {
+  color: #9aa7bd;
 }
 </style>
