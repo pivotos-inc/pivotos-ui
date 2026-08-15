@@ -95,9 +95,45 @@ export interface TaskActionCmd {
   targetUserId?: string;
 }
 
+/** 加签命令（S78 F2，对齐 AddSignatureCmd） */
+export interface AddSignatureCmd {
+  taskId: string;
+  /** 被加签人用户 ID 集合（雪花 string） */
+  userIds: string[];
+  message?: string;
+}
+
 /** 发起流程实例命令 */
 export interface StartInstanceCmd {
   flowCode: string;
   businessId?: string;
+  /** 业务名称（展示用） */
+  businessName?: string;
   variable?: Record<string, unknown>;
+  /** 抄送收件人用户 ID 集合（S78 F1，雪花 string） */
+  ccUserIds?: string[];
+}
+
+/* ================= 流程抄送（S78 F1） ================= */
+
+/** 抄送记录视图对象（对齐 WorkflowCcVO） */
+export interface WorkflowCcVO {
+  id: string;
+  instanceId: string;
+  flowName?: string;
+  creatorName?: string;
+  /** 实例当前状态（warm-flow flowStatus 口径） */
+  flowStatus?: string;
+  /** 实例当前节点 */
+  nodeName?: string;
+  /** 0 未读 1 已读 */
+  readFlag: number;
+  readTime?: string;
+  createTime?: string;
+}
+
+/** 抄送我的分页查询 */
+export interface WorkflowCcQuery extends PageQuery {
+  flowName?: string;
+  readFlag?: Emptyable<number>;
 }
