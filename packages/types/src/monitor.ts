@@ -63,6 +63,24 @@ export interface DashboardSummaryVO {
   kb: KbStatsDTO | null;
 }
 
+/** AI 生成图表规格（S72，对齐 AiChartSpecVO）：前端按 chartType 确定性装配 ECharts option */
+export interface AiChartSpecVO {
+  title: string | null;
+  /** line / bar / pie（后端白名单校验） */
+  chartType: 'line' | 'bar' | 'pie';
+  /** 类目轴（line/bar 必有，pie 可能为占位类目） */
+  categories: string[] | null;
+  series: AiChartSeries[];
+  /** 一句话说明 */
+  explanation: string | null;
+}
+
+/** AI 图表数据系列 */
+export interface AiChartSeries {
+  name: string;
+  data: number[];
+}
+
 
 /** 服务监控快照 */
 export interface ServerInfoVO {

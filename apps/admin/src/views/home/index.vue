@@ -3,13 +3,14 @@ defineOptions({ name: 'Home' });
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElButton, ElCard, ElCol, ElEmpty, ElIcon, ElRow, ElSkeleton, ElTag } from 'element-plus';
-import { Bell, Monitor } from '@element-plus/icons-vue';
+import { Bell, MagicStick, Monitor } from '@element-plus/icons-vue';
 import type { EChartsOption } from 'echarts';
 import { YDialog } from '@pivotos/ui';
 import type { DashboardSummaryVO, NoticeVO } from '@pivotos/types';
 import { getPublishedNotice, listPublishedNotices } from '@/api/system/notice';
 import { getDashboardSummary } from '@/api/monitor/dashboard';
 import BaseChart from '@/components/BaseChart.vue';
+import AiChartPanel from './AiChartPanel.vue';
 
 const router = useRouter();
 
@@ -225,6 +226,17 @@ async function openDetail(row: NoticeVO): Promise<void> {
         </ElCard>
       </ElCol>
     </ElRow>
+
+    <!-- AI 图表（S72）：自然语言生成图表，需 monitor:dashboard:view 权限 -->
+    <ElCard v-hasPermi="'monitor:dashboard:view'" shadow="never" class="home-page__chart-row">
+      <template #header>
+        <div class="home-page__card-header">
+          <ElIcon><MagicStick /></ElIcon>
+          <span>AI 图表</span>
+        </div>
+      </template>
+      <AiChartPanel />
+    </ElCard>
 
     <!-- 公告卡片 -->
     <ElCard shadow="never">

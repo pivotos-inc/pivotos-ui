@@ -1,4 +1,4 @@
-import type { DashboardSummaryVO } from '@pivotos/types';
+import type { AiChartSpecVO, DashboardSummaryVO } from '@pivotos/types';
 import { request } from '../request';
 
 /**
@@ -7,4 +7,9 @@ import { request } from '../request';
  */
 export function getDashboardSummary(): Promise<DashboardSummaryVO> {
   return request.get<unknown, DashboardSummaryVO>('/monitor/dashboard/summary');
+}
+
+/** AI 生成图表（S72 PL-REPORT 二期）：自然语言 → 结构化 ChartSpec */
+export function generateAiChart(question: string): Promise<AiChartSpecVO> {
+  return request.post<unknown, AiChartSpecVO>('/monitor/dashboard/ai-chart', { question });
 }
