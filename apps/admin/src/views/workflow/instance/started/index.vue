@@ -1,20 +1,30 @@
 <script setup lang="ts">
 defineOptions({ name: 'WorkflowInstance' });
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import {
   ElButton,
   ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
   ElMessage,
   ElMessageBox,
+  ElOption,
+  ElSelect,
   ElTag,
   ElTimeline,
   ElTimelineItem,
 } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
-import type { WorkflowHisTaskVO, WorkflowInstanceQuery, WorkflowInstanceVO } from '@pivotos/types';
-import { revokeInstance, terminateInstance, urgeInstance } from '@/api/workflow/instance';
+import { UserSelect } from '@pivotos/components';
+import type { UserSelectOption } from '@pivotos/components';
+import type { FlowDefinitionVO, WorkflowHisTaskVO, WorkflowInstanceQuery, WorkflowInstanceVO } from '@pivotos/types';
+import { revokeInstance, terminateInstance, urgeInstance, startInstance } from '@/api/workflow/instance';
+import { pageDefinitions } from '@/api/workflow/definition';
 import { taskHistory } from '@/api/workflow/task';
+import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -76,6 +86,61 @@ async function handleUrge(row: WorkflowInstanceVO): Promise<void> {
   ElMessage.success('催办已发送，审批人将收到站内信');
 }
 
+// ---------- 发起流程弹窗（S78 F3：补齐发起入口，含发起时抄送） ----------
+const startVisible = ref(false);
+const startLoading = ref(false);
+const defsLoading = ref(false);
+const startableDefs = ref<FlowDefinitionVO[]>([]);
+const startForm = reactive<{ flowCode: string; businessName: string; ccUserIds: string[] }>({
+  flowCode: '',
+  businessName: '',
+  ccUserIds: [],
+});
+
+async function openStart(): Promise<void> {
+  startForm.flowCode = '';
+  startForm.businessName = '';
+  startForm.ccUserIds = [];
+  startVisible.value = true;
+  defsLoading.value = true;
+  try {
+    // 仅已发布 + 激活的定义可发起（客户端过滤 activityStatus）
+    const res = await pageDefinitions({ isPublish: 1, pageNum: 1, pageSize: 100 });
+    startableDefs.value = (res.list ?? []).filter((d) => d.activityStatus === 1);
+  } finally {
+    defsLoading.value = false;
+  }
+}
+
+/** 用户远程搜索（注入 UserSelect，抄送人选择） */
+async function fetchUserOptions(keyword: string): Promise<UserSelectOption[]> {
+  const res = await pageUsers({ nickname: keyword || undefined, pageNum: 1, pageSize: 20 });
+  return (res.list ?? []).map((u) => ({
+    value: String(u.id),
+    label: u.nickname ? `${u.nickname}（${u.username}）` : u.username,
+  }));
+}
+
+async function submitStart(): Promise<void> {
+  if (!startForm.flowCode) {
+    ElMessage.warning('请选择要发起的流程');
+    return;
+  }
+  startLoading.value = true;
+  try {
+    await startInstance({
+      flowCode: startForm.flowCode,
+      businessName: startForm.businessName || undefined,
+      ccUserIds: startForm.ccUserIds.length > 0 ? startForm.ccUserIds : undefined,
+    });
+    ElMessage.success(startForm.ccUserIds.length > 0 ? '流程发起成功，抄送人已收到通知' : '流程发起成功');
+    startVisible.value = false;
+    await load();
+  } finally {
+    startLoading.value = false;
+  }
+}
+
 // ---------- 审批历史弹窗 ----------
 const historyVisible = ref(false);
 const historyLoading = ref(false);
@@ -111,6 +176,11 @@ function canOperate(row: WorkflowInstanceVO): boolean {
 
 <template>
   <div class="page-card">
+    <div class="started-page__bar">
+      <ElButton v-hasPermi="'workflow:instance:start'" type="primary" :icon="Plus" @click="openStart">
+        发起流程
+      </ElButton>
+    </div>
     <YSearchForm v-model="params" :schemas="searchSchemas" @search="search" @reset="reset" />
 
     <YTable
@@ -168,6 +238,27 @@ function canOperate(row: WorkflowInstanceVO): boolean {
       </ElTableColumn>
     </YTable>
 
+    <!-- 发起流程弹窗（S78 F3） -->
+    <ElDialog v-model="startVisible" title="发起流程" width="520" destroy-on-close>
+      <ElForm label-width="90">
+        <ElFormItem label="选择流程">
+          <ElSelect v-model="startForm.flowCode" :loading="defsLoading" placeholder="请选择已发布的流程" style="width: 100%">
+            <ElOption v-for="d in startableDefs" :key="d.id" :label="d.flowName" :value="d.flowCode" />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem label="业务名称">
+          <ElInput v-model="startForm.businessName" placeholder="如：张三的请假单（可选）" />
+        </ElFormItem>
+        <ElFormItem label="抄送给">
+          <UserSelect v-model="startForm.ccUserIds" multiple :fetch-options="fetchUserOptions" placeholder="搜索并选择抄送人（可多选，可选）" />
+        </ElFormItem>
+      </ElForm>
+      <template #footer>
+        <ElButton @click="startVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="startLoading" @click="submitStart">发起</ElButton>
+      </template>
+    </ElDialog>
+
     <!-- 审批历史弹窗 -->
     <ElDialog v-model="historyVisible" title="审批历史" width="600" destroy-on-close>
       <div v-loading="historyLoading">
@@ -211,3 +302,11 @@ function canOperate(row: WorkflowInstanceVO): boolean {
     </ElDialog>
   </div>
 </template>
+
+<style scoped>
+.started-page__bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+</style>

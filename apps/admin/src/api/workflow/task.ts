@@ -1,4 +1,4 @@
-import type { PageResult, TaskActionCmd, WorkflowHisTaskVO, WorkflowTaskVO } from '@pivotos/types';
+import type { AddSignatureCmd, PageResult, TaskActionCmd, WorkflowHisTaskVO, WorkflowTaskVO } from '@pivotos/types';
 import { request } from '../request';
 
 /** 待办分页 */
@@ -29,6 +29,11 @@ export function transferTask(cmd: TaskActionCmd): Promise<void> {
 /** 委派 */
 export function deputeTask(cmd: TaskActionCmd): Promise<void> {
   return request.put<unknown, void>('/workflow/task/depute', cmd);
+}
+
+/** 加签（S78 F2）：为待办任务追加审批人（或签语义） */
+export function addSignatureTask(cmd: AddSignatureCmd): Promise<void> {
+  return request.put<unknown, void>('/workflow/task/add-signature', cmd);
 }
 
 /** 审批历史 */

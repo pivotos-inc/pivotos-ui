@@ -15,8 +15,11 @@ import {
 } from 'element-plus';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
+import { UserSelect } from '@pivotos/components';
+import type { UserSelectOption } from '@pivotos/components';
 import type { WorkflowHisTaskVO, WorkflowTaskQuery, WorkflowTaskVO } from '@pivotos/types';
-import { passTask, rejectTask, transferTask, deputeTask, taskHistory } from '@/api/workflow/task';
+import { passTask, rejectTask, transferTask, deputeTask, addSignatureTask, taskHistory } from '@/api/workflow/task';
+import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -82,6 +85,47 @@ async function submitApprove(): Promise<void> {
     await load();
   } finally {
     approveLoading.value = false;
+  }
+}
+
+// ---------- 加签弹窗（S78 F2） ----------
+const signVisible = ref(false);
+const signLoading = ref(false);
+const signForm = reactive<{ taskId: string; userIds: string[]; message: string }>({
+  taskId: '',
+  userIds: [],
+  message: '',
+});
+
+/** 用户远程搜索（注入 UserSelect，按昵称模糊） */
+async function fetchUserOptions(keyword: string): Promise<UserSelectOption[]> {
+  const res = await pageUsers({ nickname: keyword || undefined, pageNum: 1, pageSize: 20 });
+  return (res.list ?? []).map((u) => ({
+    value: String(u.id),
+    label: u.nickname ? `${u.nickname}（${u.username}）` : u.username,
+  }));
+}
+
+function openSignature(row: WorkflowTaskVO): void {
+  signForm.taskId = row.id;
+  signForm.userIds = [];
+  signForm.message = '';
+  signVisible.value = true;
+}
+
+async function submitSignature(): Promise<void> {
+  if (signForm.userIds.length === 0) {
+    ElMessage.warning('请选择加签目标用户');
+    return;
+  }
+  signLoading.value = true;
+  try {
+    await addSignatureTask({ taskId: signForm.taskId, userIds: signForm.userIds, message: signForm.message || undefined });
+    ElMessage.success('加签成功，被加签人已收到待办通知');
+    signVisible.value = false;
+    await load();
+  } finally {
+    signLoading.value = false;
   }
 }
 
@@ -155,6 +199,9 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
             <ElButton v-hasPermi="'workflow:task:depute'" link type="info" @click="openApprove(row as WorkflowTaskVO, 'depute')">
               委派
             </ElButton>
+            <ElButton v-hasPermi="'workflow:task:add-signature'" link type="primary" @click="openSignature(row as WorkflowTaskVO)">
+              加签
+            </ElButton>
           </template>
           <ElButton link type="primary" @click="openHistory(row as WorkflowTaskVO)">
             历史
@@ -176,6 +223,22 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
       <template #footer>
         <ElButton @click="approveVisible = false">取消</ElButton>
         <ElButton type="primary" :loading="approveLoading" @click="submitApprove">确定</ElButton>
+      </template>
+    </ElDialog>
+
+    <!-- 加签弹窗（S78 F2） -->
+    <ElDialog v-model="signVisible" title="加签" width="480" destroy-on-close>
+      <ElForm label-width="90">
+        <ElFormItem label="加签用户">
+          <UserSelect v-model="signForm.userIds" multiple :fetch-options="fetchUserOptions" placeholder="搜索并选择加签用户（可多选）" />
+        </ElFormItem>
+        <ElFormItem label="加签说明">
+          <ElInput v-model="signForm.message" type="textarea" :rows="3" placeholder="请输入说明（可选）" />
+        </ElFormItem>
+      </ElForm>
+      <template #footer>
+        <ElButton @click="signVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="signLoading" @click="submitSignature">确定</ElButton>
       </template>
     </ElDialog>
 
