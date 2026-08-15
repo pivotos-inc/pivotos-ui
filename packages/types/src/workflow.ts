@@ -82,6 +82,8 @@ export interface WorkflowHisTaskVO {
   targetNodeName?: string;
   approver?: string;
   skipType?: string;
+  /** warm-flow CooperateType：6=加签 7=减签（S81/S82 展示补齐） */
+  cooperateType?: number;
   flowStatus?: string;
   message?: string;
   createTime?: string;
@@ -101,6 +103,21 @@ export interface AddSignatureCmd {
   /** 被加签人用户 ID 集合（雪花 string） */
   userIds: string[];
   message?: string;
+}
+
+/** 减签命令（S82，对齐 ReductionSignatureCmd） */
+export interface ReductionSignatureCmd {
+  taskId: string;
+  /** 被减签人用户 ID 集合（雪花 string） */
+  userIds: string[];
+  message?: string;
+}
+
+/** 用户选项（S82：减签选人候选，对齐 UserOptionVO） */
+export interface WorkflowUserOption {
+  id: string;
+  username?: string;
+  nickname?: string;
 }
 
 /** 发起流程实例命令 */
