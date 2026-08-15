@@ -10,6 +10,7 @@ import type { EChartsOption } from 'echarts';
 import type { DashboardSummaryVO } from '@pivotos/types';
 import { getDashboardSummary } from '@/api/monitor/dashboard';
 import BaseChart from '@/components/BaseChart.vue';
+import AiChartPanel from '@/views/home/AiChartPanel.vue';
 
 const router = useRouter();
 
@@ -54,13 +55,19 @@ function tick(): void {
   });
 }
 
-// ---------- ESC 退出 ----------
+// ---------- ESC 退出（AI 图表抽屉打开时优先关抽屉，S73 F2） ----------
+const aiDrawerOpen = ref(false);
+
 function exit(): void {
   router.push('/home');
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
+    if (aiDrawerOpen.value) {
+      aiDrawerOpen.value = false;
+      return;
+    }
     exit();
   }
 }
@@ -273,6 +280,9 @@ const storageText = computed(() => formatBytes(summary.value?.file?.totalBytes))
       <div class="bigscreen__clock">{{ clock }}</div>
       <h1 class="bigscreen__title">PivotOS 运营数据大屏</h1>
       <div class="bigscreen__actions">
+        <button v-hasPermi="'monitor:dashboard:view'" class="bigscreen__exit" @click="aiDrawerOpen = true">
+          AI 图表
+        </button>
         <button class="bigscreen__exit" @click="toggleFullscreen">
           {{ isFullscreen ? '退出全屏' : '进入全屏' }}
         </button>
@@ -311,6 +321,17 @@ const storageText = computed(() => formatBytes(summary.value?.file?.totalBytes))
         <BaseChart v-if="summary?.ai" :option="keyHealthOption" dark />
       </div>
     </section>
+
+    <!-- AI 图表侧滑抽屉（S73 F2）：页面内自绘面板，不引 ElDrawer 避免 teleport 暗色样式问题 -->
+    <transition name="bigscreen-drawer">
+      <aside v-if="aiDrawerOpen" class="bigscreen__drawer">
+        <header class="bigscreen__drawer-header">
+          <span>AI 图表</span>
+          <button class="bigscreen__exit" @click="aiDrawerOpen = false">关闭（ESC）</button>
+        </header>
+        <AiChartPanel dark />
+      </aside>
+    </transition>
   </div>
 </template>
 
@@ -421,5 +442,41 @@ const storageText = computed(() => formatBytes(summary.value?.file?.totalBytes))
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(3, 1fr);
   }
+}
+
+/* AI 图表侧滑抽屉（S73 F2） */
+.bigscreen__drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: 40%;
+  min-width: 420px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, #0d1526 0%, #101a2e 100%);
+  border-left: 1px solid rgba(74, 85, 104, 0.6);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  overflow-y: auto;
+}
+
+.bigscreen__drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #dfe7f3;
+}
+
+.bigscreen-drawer-enter-active,
+.bigscreen-drawer-leave-active {
+  transition: transform 0.25s ease;
+}
+
+.bigscreen-drawer-enter-from,
+.bigscreen-drawer-leave-to {
+  transform: translateX(100%);
 }
 </style>
