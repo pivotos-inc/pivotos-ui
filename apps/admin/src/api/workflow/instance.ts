@@ -17,6 +17,11 @@ export function terminateInstance(instanceId: string): Promise<void> {
   return request.put<unknown, void>(`/workflow/instance/${instanceId}/terminate`);
 }
 
+/** 催办（S77 F2）：发起人催促当前审批人，10 分钟限频 */
+export function urgeInstance(instanceId: string): Promise<void> {
+  return request.put<unknown, void>(`/workflow/instance/${instanceId}/urge`);
+}
+
 /** 实例详情 */
 export function getInstance(instanceId: string): Promise<WorkflowInstanceVO> {
   return request.get<unknown, WorkflowInstanceVO>(`/workflow/instance/${instanceId}`);

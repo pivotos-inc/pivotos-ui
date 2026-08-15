@@ -13,7 +13,7 @@ import {
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import type { WorkflowHisTaskVO, WorkflowInstanceQuery, WorkflowInstanceVO } from '@pivotos/types';
-import { revokeInstance, terminateInstance } from '@/api/workflow/instance';
+import { revokeInstance, terminateInstance, urgeInstance } from '@/api/workflow/instance';
 import { taskHistory } from '@/api/workflow/task';
 import { useTablePage } from '@/hooks';
 
@@ -67,10 +67,21 @@ async function handleTerminate(row: WorkflowInstanceVO): Promise<void> {
   await load();
 }
 
+// ---------- 催办（S77 F2） ----------
+const urgedIds = ref<Set<string>>(new Set());
+
+async function handleUrge(row: WorkflowInstanceVO): Promise<void> {
+  await urgeInstance(row.id);
+  urgedIds.value.add(row.id);
+  ElMessage.success('催办已发送，审批人将收到站内信');
+}
+
 // ---------- 审批历史弹窗 ----------
 const historyVisible = ref(false);
 const historyLoading = ref(false);
 const historyList = ref<WorkflowHisTaskVO[]>([]);
+/** 当前查看历史的实例（对话框头部展示当前节点/状态，S77 F3） */
+const historyRow = ref<WorkflowInstanceVO | null>(null);
 
 const SKIP_TYPE_LABEL: Record<string, string> = {
   PASS: '通过', REJECT: '驳回', NONE: '无动作',
@@ -81,6 +92,7 @@ const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 
 };
 
 async function openHistory(row: WorkflowInstanceVO): Promise<void> {
+  historyRow.value = row;
   historyLoading.value = true;
   historyVisible.value = true;
   try {
@@ -119,8 +131,18 @@ function canOperate(row: WorkflowInstanceVO): boolean {
           {{ FLOW_STATUS_TAG[(row as WorkflowInstanceVO).flowStatus ?? '']?.label ?? (row as WorkflowInstanceVO).flowStatus }}
         </ElTag>
       </template>
-      <ElTableColumn label="操作" width="220" align="center" fixed="right">
+      <ElTableColumn label="操作" width="280" align="center" fixed="right">
         <template #default="{ row }">
+          <ElButton
+            v-if="canOperate(row as WorkflowInstanceVO)"
+            v-hasPermi="'workflow:instance:list'"
+            link
+            type="primary"
+            :disabled="urgedIds.has((row as WorkflowInstanceVO).id)"
+            @click="handleUrge(row as WorkflowInstanceVO)"
+          >
+            {{ urgedIds.has((row as WorkflowInstanceVO).id) ? '已催办' : '催办' }}
+          </ElButton>
           <ElButton
             v-if="canOperate(row as WorkflowInstanceVO)"
             v-hasPermi="'workflow:instance:revoke'"
@@ -149,6 +171,17 @@ function canOperate(row: WorkflowInstanceVO): boolean {
     <!-- 审批历史弹窗 -->
     <ElDialog v-model="historyVisible" title="审批历史" width="600" destroy-on-close>
       <div v-loading="historyLoading">
+        <div v-if="historyRow" style="margin-bottom: 12px; color: #606266; font-size: 13px">
+          流程「{{ historyRow.flowName }}」 当前节点：{{ historyRow.nodeName ?? '-' }}
+          <ElTag
+            :type="FLOW_STATUS_TAG[historyRow.flowStatus ?? '']?.type ?? 'info'"
+            size="small"
+            disable-transitions
+            style="margin-left: 8px"
+          >
+            {{ FLOW_STATUS_TAG[historyRow.flowStatus ?? '']?.label ?? historyRow.flowStatus }}
+          </ElTag>
+        </div>
         <ElTimeline v-if="historyList.length > 0">
           <ElTimelineItem
             v-for="item in historyList"
