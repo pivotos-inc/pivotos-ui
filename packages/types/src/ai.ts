@@ -398,3 +398,75 @@ export interface KbEvalRecordSaveBody {
     orderChanged: boolean;
   }[];
 }
+
+/* ================= AI 用量监控（S92） ================= */
+
+/** 用量场景分布项（对齐 AiUsageSummaryVO.SceneItem；Long 序列化为字符串） */
+export interface AiUsageSceneItem {
+  /** 场景（chat/rag/coding/chart/other） */
+  scene: string;
+  /** 调用次数 */
+  calls: number | string;
+  /** token 合计 */
+  totalTokens: number | string;
+}
+
+/** 用量日趋势项（对齐 AiUsageSummaryVO.TrendItem，缺日补 0） */
+export interface AiUsageTrendItem {
+  /** 日期 yyyy-MM-dd */
+  day: string;
+  /** 调用次数 */
+  calls: number | string;
+  /** token 合计 */
+  totalTokens: number | string;
+}
+
+/** 用量汇总（对齐 AiUsageSummaryVO：总量卡片 + 场景分布 + 日趋势） */
+export interface AiUsageSummaryVO {
+  /** 调用总次数 */
+  calls: number | string;
+  /** 失败调用次数 */
+  failedCalls: number | string;
+  /** 提示词 token 合计 */
+  promptTokens: number | string;
+  /** 生成 token 合计 */
+  completionTokens: number | string;
+  /** 总 token 合计 */
+  totalTokens: number | string;
+  /** 按场景分布 */
+  byScene: AiUsageSceneItem[];
+  /** 按日趋势（缺日补 0） */
+  trend: AiUsageTrendItem[];
+}
+
+/** 用量按供应商 × Key 聚合（对齐 AiUsageProviderVO） */
+export interface AiUsageProviderVO {
+  /** 供应商编码（静态兜底为 static） */
+  providerCode: string;
+  /** Key ID（静态兜底为空） */
+  keyId?: string;
+  /** Key 备注名（后端回填） */
+  keyLabel?: string;
+  /** 调用次数 */
+  calls: number | string;
+  /** 提示词 token 合计 */
+  promptTokens: number | string;
+  /** 生成 token 合计 */
+  completionTokens: number | string;
+  /** 总 token 合计 */
+  totalTokens: number | string;
+}
+
+/** 用量按用户聚合（对齐 AiUsageUserVO） */
+export interface AiUsageUserVO {
+  /** 用户 ID（未登录链路为空） */
+  userId?: string;
+  /** 用户名（后端回填） */
+  username?: string;
+  /** 昵称（后端回填） */
+  nickname?: string;
+  /** 调用次数 */
+  calls: number | string;
+  /** 总 token 合计 */
+  totalTokens: number | string;
+}
