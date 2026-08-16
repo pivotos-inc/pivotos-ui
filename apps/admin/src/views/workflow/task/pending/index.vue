@@ -8,6 +8,8 @@ import {
   ElFormItem,
   ElInput,
   ElMessage,
+  ElOption,
+  ElSelect,
   ElTableColumn,
   ElTag,
   ElTimeline,
@@ -15,8 +17,11 @@ import {
 } from 'element-plus';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
-import type { WorkflowHisTaskVO, WorkflowTaskQuery, WorkflowTaskVO } from '@pivotos/types';
-import { passTask, rejectTask, transferTask, deputeTask, taskHistory } from '@/api/workflow/task';
+import { UserSelect } from '@pivotos/components';
+import type { UserSelectOption } from '@pivotos/components';
+import type { WorkflowHisTaskVO, WorkflowTaskQuery, WorkflowTaskVO, WorkflowUserOption } from '@pivotos/types';
+import { passTask, rejectTask, transferTask, deputeTask, addSignatureTask, reductionSignatureTask, taskApprovers, taskHistory } from '@/api/workflow/task';
+import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -85,6 +90,81 @@ async function submitApprove(): Promise<void> {
   }
 }
 
+// ---------- 加签弹窗（S78 F2） ----------
+const signVisible = ref(false);
+const signLoading = ref(false);
+const signForm = reactive<{ taskId: string; userIds: string[]; message: string }>({
+  taskId: '',
+  userIds: [],
+  message: '',
+});
+
+/** 用户远程搜索（注入 UserSelect，按昵称模糊） */
+async function fetchUserOptions(keyword: string): Promise<UserSelectOption[]> {
+  const res = await pageUsers({ nickname: keyword || undefined, pageNum: 1, pageSize: 20 });
+  return (res.list ?? []).map((u) => ({
+    value: String(u.id),
+    label: u.nickname ? `${u.nickname}（${u.username}）` : u.username,
+  }));
+}
+
+function openSignature(row: WorkflowTaskVO): void {
+  signForm.taskId = row.id;
+  signForm.userIds = [];
+  signForm.message = '';
+  signVisible.value = true;
+}
+
+async function submitSignature(): Promise<void> {
+  if (signForm.userIds.length === 0) {
+    ElMessage.warning('请选择加签目标用户');
+    return;
+  }
+  signLoading.value = true;
+  try {
+    await addSignatureTask({ taskId: signForm.taskId, userIds: signForm.userIds, message: signForm.message || undefined });
+    ElMessage.success('加签成功，被加签人已收到待办通知');
+    signVisible.value = false;
+    await load();
+  } finally {
+    signLoading.value = false;
+  }
+}
+
+// ---------- 减签弹窗（S82：候选 = 当前待办审批人，引擎护栏不足两人不可减签） ----------
+const redVisible = ref(false);
+const redLoading = ref(false);
+const redForm = reactive<{ taskId: string; userIds: string[]; message: string }>({
+  taskId: '',
+  userIds: [],
+  message: '',
+});
+const approverOptions = ref<WorkflowUserOption[]>([]);
+
+async function openReduction(row: WorkflowTaskVO): Promise<void> {
+  redForm.taskId = row.id;
+  redForm.userIds = [];
+  redForm.message = '';
+  redVisible.value = true;
+  approverOptions.value = await taskApprovers(row.id);
+}
+
+async function submitReduction(): Promise<void> {
+  if (redForm.userIds.length === 0) {
+    ElMessage.warning('请选择减签目标用户');
+    return;
+  }
+  redLoading.value = true;
+  try {
+    await reductionSignatureTask({ taskId: redForm.taskId, userIds: redForm.userIds, message: redForm.message || undefined });
+    ElMessage.success('减签成功');
+    redVisible.value = false;
+    await load();
+  } finally {
+    redLoading.value = false;
+  }
+}
+
 // ---------- 审批历史弹窗 ----------
 const historyVisible = ref(false);
 const historyLoading = ref(false);
@@ -103,12 +183,21 @@ const FLOW_STATUS_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' 
 };
 
 const SKIP_TYPE_LABEL: Record<string, string> = {
-  PASS: '通过', REJECT: '驳回', NONE: '无动作',
+  PASS: '通过', REJECT: '驳回', NONE: '无动作', TRANSFER: '转办', DEPUTE: '委派',
+  ADD_SIGNATURE: '加签', REDUCTION_SIGNATURE: '减签', REVOKE: '撤回', TERMINATION: '终止',
 };
 
 const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-  PASS: 'success', REJECT: 'danger', NONE: 'info',
+  PASS: 'success', REJECT: 'danger', NONE: 'info', TRANSFER: 'warning', DEPUTE: 'warning',
+  ADD_SIGNATURE: 'warning', REDUCTION_SIGNATURE: 'warning', REVOKE: 'info', TERMINATION: 'danger',
 };
+
+/** 加签/减签留痕的 skipType 为 NONE，展示以 cooperateType 优先（6=加签、7=减签） */
+function effSkipType(item: WorkflowHisTaskVO): string {
+  if (item.cooperateType === 6) return 'ADD_SIGNATURE';
+  if (item.cooperateType === 7) return 'REDUCTION_SIGNATURE';
+  return item.skipType ?? '';
+}
 
 async function openHistory(row: WorkflowTaskVO): Promise<void> {
   historyLoading.value = true;
@@ -140,7 +229,7 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
           {{ FLOW_STATUS_LABEL[(row as WorkflowTaskVO).flowStatus ?? ''] ?? (row as WorkflowTaskVO).flowStatus ?? '待审批' }}
         </ElTag>
       </template>
-      <ElTableColumn label="操作" width="320" align="center" fixed="right">
+      <ElTableColumn label="操作" width="380" align="center" fixed="right">
         <template #default="{ row }">
           <template v-if="(row as WorkflowTaskVO).flowStatus === '1'">
             <ElButton v-hasPermi="'workflow:task:approve'" link type="success" @click="openApprove(row as WorkflowTaskVO, 'pass')">
@@ -154,6 +243,12 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
             </ElButton>
             <ElButton v-hasPermi="'workflow:task:depute'" link type="info" @click="openApprove(row as WorkflowTaskVO, 'depute')">
               委派
+            </ElButton>
+            <ElButton v-hasPermi="'workflow:task:add-signature'" link type="primary" @click="openSignature(row as WorkflowTaskVO)">
+              加签
+            </ElButton>
+            <ElButton v-hasPermi="'workflow:task:add-signature'" link type="warning" @click="openReduction(row as WorkflowTaskVO)">
+              减签
             </ElButton>
           </template>
           <ElButton link type="primary" @click="openHistory(row as WorkflowTaskVO)">
@@ -179,6 +274,45 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
       </template>
     </ElDialog>
 
+    <!-- 加签弹窗（S78 F2） -->
+    <ElDialog v-model="signVisible" title="加签" width="480" destroy-on-close>
+      <ElForm label-width="90">
+        <ElFormItem label="加签用户">
+          <UserSelect v-model="signForm.userIds" multiple :fetch-options="fetchUserOptions" placeholder="搜索并选择加签用户（可多选）" />
+        </ElFormItem>
+        <ElFormItem label="加签说明">
+          <ElInput v-model="signForm.message" type="textarea" :rows="3" placeholder="请输入说明（可选）" />
+        </ElFormItem>
+      </ElForm>
+      <template #footer>
+        <ElButton @click="signVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="signLoading" @click="submitSignature">确定</ElButton>
+      </template>
+    </ElDialog>
+
+    <!-- 减签弹窗（S82） -->
+    <ElDialog v-model="redVisible" title="减签" width="480" destroy-on-close>
+      <ElForm label-width="90">
+        <ElFormItem label="减签用户">
+          <ElSelect v-model="redForm.userIds" multiple placeholder="请选择要移除的审批人" style="width: 100%">
+            <ElOption
+              v-for="u in approverOptions"
+              :key="u.id"
+              :value="u.id"
+              :label="u.nickname ? `${u.nickname}（${u.username ?? u.id}）` : (u.username ?? u.id)"
+            />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem label="减签说明">
+          <ElInput v-model="redForm.message" type="textarea" :rows="3" placeholder="请输入说明（可选）" />
+        </ElFormItem>
+      </ElForm>
+      <template #footer>
+        <ElButton @click="redVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="redLoading" @click="submitReduction">确定</ElButton>
+      </template>
+    </ElDialog>
+
     <!-- 审批历史弹窗 -->
     <ElDialog v-model="historyVisible" title="审批历史" width="600" destroy-on-close>
       <div v-loading="historyLoading">
@@ -192,12 +326,12 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
             <div>
               <strong>{{ item.nodeName }}</strong>
               <ElTag
-                :type="SKIP_TYPE_TAG[item.skipType ?? ''] ?? 'info'"
+                :type="SKIP_TYPE_TAG[effSkipType(item as WorkflowHisTaskVO)] ?? 'info'"
                 size="small"
                 disable-transitions
                 style="margin-left: 8px"
               >
-                {{ SKIP_TYPE_LABEL[item.skipType ?? ''] ?? item.skipType }}
+                {{ SKIP_TYPE_LABEL[effSkipType(item as WorkflowHisTaskVO)] ?? (item as WorkflowHisTaskVO).skipType }}
               </ElTag>
             </div>
             <div style="color: #909399; font-size: 13px; margin-top: 4px">

@@ -1,5 +1,10 @@
-import type { FlowDefinitionVO } from '@pivotos/types';
+import type { FlowDefinitionQuery, FlowDefinitionVO, PageResult } from '@pivotos/types';
 import { request } from '../request';
+
+/** 流程定义分页（发起流程下拉等场景复用） */
+export function pageDefinitions(params: FlowDefinitionQuery): Promise<PageResult<FlowDefinitionVO>> {
+  return request.get<unknown, PageResult<FlowDefinitionVO>>('/workflow/definition/page', { params });
+}
 
 /** 流程定义详情 */
 export function getDefinition(id: string): Promise<FlowDefinitionVO> {
