@@ -192,8 +192,10 @@ const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 
   ADD_SIGNATURE: 'warning', REDUCTION_SIGNATURE: 'warning', REVOKE: 'info', TERMINATION: 'danger',
 };
 
-/** 加签/减签留痕的 skipType 为 NONE，展示以 cooperateType 优先（6=加签、7=减签） */
+/** 转办/委派/加签/减签留痕的 skipType 为 NONE，展示以 cooperateType 优先（2=转办、3=委派、6=加签、7=减签，S93 补转办/委派） */
 function effSkipType(item: WorkflowHisTaskVO): string {
+  if (item.cooperateType === 2) return 'TRANSFER';
+  if (item.cooperateType === 3) return 'DEPUTE';
   if (item.cooperateType === 6) return 'ADD_SIGNATURE';
   if (item.cooperateType === 7) return 'REDUCTION_SIGNATURE';
   return item.skipType ?? '';
