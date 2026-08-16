@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineOptions({ name: 'ToolJobLog' });
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   ElButton,
   ElDescriptions,
@@ -15,6 +15,7 @@ import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import type { JobLogQuery, JobLogVO } from '@pivotos/types';
 import { useTablePage } from '@/hooks';
 import { triggerJob } from '@/api/system/jobLog';
+import { getJobHandlers } from '@/api/system/job';
 
 /** 查询表单额外的日期范围字段（下发前拆为 beginTime/endTime） */
 interface JobLogParams extends JobLogQuery {
@@ -29,32 +30,43 @@ const { loading, rows, total, params, load, search, reset } = useTablePage<
   query: { jobHandler: '', status: '', timeRange: '' },
 });
 
-/** 已注册的可手动触发任务（与后端 @XxlJob handler 对齐） */
-const HANDLER_OPTIONS = [
-  { label: 'AI Key 健康度巡检', value: 'aiApiKeyHealthCheck' },
-  { label: '操作日志清理', value: 'operLogCleanup' },
-];
+/** 已注册的 Handler 列表（onMounted 时从后端动态获取） */
+const handlerOptions = ref<{ label: string; value: string }[]>([]);
+const handlerMap = computed(() => {
+  const map: Record<string, string> = {};
+  handlerOptions.value.forEach((h) => { map[h.value] = h.label; });
+  return map;
+});
+
+onMounted(async () => {
+  try {
+    const handlers = await getJobHandlers();
+    handlerOptions.value = handlers.map((h) => ({ label: h.displayName, value: h.handler }));
+  } catch {
+    handlerOptions.value = [];
+  }
+});
 
 const STATUS_OPTIONS = [
   { label: '成功', value: 0 },
   { label: '失败', value: 1 },
 ];
 
-const searchSchemas: YFormSchema[] = [
+const searchSchemas = computed<YFormSchema[]>(() => [
   {
     field: 'jobHandler',
     label: '任务',
     component: 'select',
     placeholder: '全部',
-    options: HANDLER_OPTIONS,
+    options: handlerOptions.value,
   },
   { field: 'status', label: '结果', component: 'select', placeholder: '全部', options: STATUS_OPTIONS },
   { field: 'timeRange', label: '执行时间', component: 'daterange' },
-];
+]);
 
 const columns: YTableColumn<JobLogVO>[] = [
   { type: 'index', label: '#', width: 56, align: 'center' },
-  { prop: 'jobHandler', label: '任务 Handler', minWidth: 180 },
+  { prop: 'jobHandler', label: '任务', minWidth: 140, slot: 'jobHandler' },
   { prop: 'status', label: '结果', width: 80, align: 'center', slot: 'status' },
   { prop: 'duration', label: '耗时(ms)', width: 100, align: 'right' },
   { prop: 'executeTime', label: '执行时间', width: 170 },
@@ -112,7 +124,7 @@ function openDetail(row: JobLogVO): void {
     <div class="job-trigger-bar">
       <span class="job-trigger-bar__tip">手动触发：</span>
       <ElButton
-        v-for="h in HANDLER_OPTIONS"
+        v-for="h in handlerOptions"
         :key="h.value"
         size="small"
         type="primary"
@@ -134,6 +146,9 @@ function openDetail(row: JobLogVO): void {
       row-key="id"
       @refresh="load"
     >
+      <template #jobHandler="{ row }">
+        {{ handlerMap[(row as JobLogVO).jobHandler] ?? (row as JobLogVO).jobHandler }}
+      </template>
       <template #status="{ row }">
         <ElTag :type="(row as JobLogVO).status === 0 ? 'success' : 'danger'" disable-transitions>
           {{ (row as JobLogVO).status === 0 ? '成功' : '失败' }}

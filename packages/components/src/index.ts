@@ -30,3 +30,6 @@ export { default as FileUpload } from './FileUpload/FileUpload.vue';
 // Excel 导入导出（注入业务侧 axios 调用，对接 starter-excel）
 export { default as YExcel } from './YExcel/YExcel.vue';
 export type { ImportResult, ImportError, ImportStreamRow, ImportStreamDone, ImportStreamCallbacks, ImportStreamFn } from './YExcel/types';
+
+// Cron 表达式生成器（6 字段 Tab + 预设 + 实时预览）
+export { default as CronPicker } from './CronPicker/CronPicker.vue';
