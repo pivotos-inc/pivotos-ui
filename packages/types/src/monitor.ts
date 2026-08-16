@@ -81,6 +81,25 @@ export interface AiChartSeries {
   data: number[];
 }
 
+/** AI 图表保存命令（S83，对齐 AiChartSaveCmd） */
+export interface AiChartSaveCmd {
+  /** 生成时的自然语言描述（可选） */
+  question?: string;
+  /** 图表规格（与生成端点同结构） */
+  spec: AiChartSpecVO;
+}
+
+/** AI 图表历史（S83，对齐 AiChartHistoryVO）：回放时解析 specJson 确定性装配 */
+export interface AiChartHistoryVO {
+  id: string;
+  question: string | null;
+  title: string | null;
+  chartType: 'line' | 'bar' | 'pie';
+  /** ChartSpec JSON 全量快照 */
+  specJson: string;
+  createTime: string;
+}
+
 
 /** 服务监控快照 */
 export interface ServerInfoVO {

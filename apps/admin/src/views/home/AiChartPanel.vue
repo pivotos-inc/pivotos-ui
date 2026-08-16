@@ -5,11 +5,11 @@
  */
 defineOptions({ name: 'AiChartPanel' });
 import { computed, ref } from 'vue';
-import { ElButton, ElEmpty, ElIcon, ElInput } from 'element-plus';
-import { MagicStick } from '@element-plus/icons-vue';
+import { ElButton, ElDialog, ElEmpty, ElIcon, ElInput, ElMessage, ElMessageBox, ElPagination, ElTag } from 'element-plus';
+import { Clock, MagicStick, Star } from '@element-plus/icons-vue';
 import type { EChartsOption } from 'echarts';
-import type { AiChartSpecVO } from '@pivotos/types';
-import { generateAiChart } from '@/api/monitor/dashboard';
+import type { AiChartHistoryVO, AiChartSpecVO } from '@pivotos/types';
+import { deleteAiChart, generateAiChart, pageAiChartHistory, saveAiChart } from '@/api/monitor/dashboard';
 import BaseChart from '@/components/BaseChart.vue';
 
 /** dark：大屏暗色容器内使用（S73 F2），图表与提示文字走暗色样式 */
@@ -79,6 +79,84 @@ async function generate(): Promise<void> {
     loading.value = false;
   }
 }
+
+// ==================== S83 保存 / 历史 ====================
+
+const saving = ref(false);
+const historyVisible = ref(false);
+const historyLoading = ref(false);
+const historyList = ref<AiChartHistoryVO[]>([]);
+const historyTotal = ref(0);
+const historyPageNum = ref(1);
+
+/** 收藏当前图表（spec 存在时可点） */
+async function saveChart(): Promise<void> {
+  if (!spec.value || saving.value) {
+    return;
+  }
+  saving.value = true;
+  try {
+    await saveAiChart({ question: question.value.trim() || undefined, spec: spec.value });
+    ElMessage.success('图表已保存，可在「历史」中查看');
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '图表保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function loadHistory(): Promise<void> {
+  historyLoading.value = true;
+  try {
+    const res = await pageAiChartHistory(historyPageNum.value, 10);
+    historyList.value = res.list;
+    historyTotal.value = Number(res.total) || 0;
+  } catch {
+    historyList.value = [];
+    historyTotal.value = 0;
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+function openHistory(): void {
+  historyVisible.value = true;
+  historyPageNum.value = 1;
+  loadHistory();
+}
+
+/** 回放：解析 specJson 快照，仍走 chartOption 确定性装配（不直渲 raw option） */
+function replay(item: AiChartHistoryVO): void {
+  try {
+    const s = JSON.parse(item.specJson) as AiChartSpecVO;
+    if (!s || !s.chartType || !Array.isArray(s.series)) {
+      throw new Error('invalid spec');
+    }
+    spec.value = s;
+    if (item.question) {
+      question.value = item.question;
+    }
+    historyVisible.value = false;
+    errorMsg.value = '';
+  } catch {
+    ElMessage.error('图表数据已损坏，无法回放');
+  }
+}
+
+async function removeHistory(item: AiChartHistoryVO): Promise<void> {
+  try {
+    await ElMessageBox.confirm(`确定删除图表「${item.title ?? item.question ?? item.id}」？`, '删除确认', {
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  await deleteAiChart(item.id);
+  ElMessage.success('已删除');
+  loadHistory();
+}
+
+const CHART_TYPE_LABEL: Record<string, string> = { line: '折线图', bar: '柱状图', pie: '饼图' };
 </script>
 
 <template>
@@ -95,6 +173,14 @@ async function generate(): Promise<void> {
         <ElIcon class="ai-chart__icon"><MagicStick /></ElIcon>
         AI 生成
       </ElButton>
+      <ElButton :disabled="!spec" :loading="saving" @click="saveChart">
+        <ElIcon class="ai-chart__icon"><Star /></ElIcon>
+        保存
+      </ElButton>
+      <ElButton @click="openHistory">
+        <ElIcon class="ai-chart__icon"><Clock /></ElIcon>
+        历史
+      </ElButton>
     </div>
 
     <div class="ai-chart__box">
@@ -105,6 +191,35 @@ async function generate(): Promise<void> {
     </div>
 
     <div v-if="spec?.explanation" class="ai-chart__explanation">{{ spec.explanation }}</div>
+
+    <!-- S83 我的图表历史：点击回放 spec 快照，支持删除 -->
+    <ElDialog v-model="historyVisible" title="我的图表历史" width="560px" append-to-body>
+      <div v-loading="historyLoading" class="ai-chart__history">
+        <ElEmpty v-if="!historyLoading && historyList.length === 0" description="暂无保存的图表" :image-size="50" />
+        <div v-for="item in historyList" :key="item.id" class="ai-chart__history-item">
+          <div class="ai-chart__history-info">
+            <div class="ai-chart__history-title">{{ item.title || item.question || '未命名图表' }}</div>
+            <div class="ai-chart__history-meta">
+              <ElTag size="small" type="info">{{ CHART_TYPE_LABEL[item.chartType] ?? item.chartType }}</ElTag>
+              <span>{{ item.createTime }}</span>
+            </div>
+          </div>
+          <div class="ai-chart__history-actions">
+            <ElButton size="small" type="primary" link @click="replay(item)">回放</ElButton>
+            <ElButton size="small" type="danger" link @click="removeHistory(item)">删除</ElButton>
+          </div>
+        </div>
+        <ElPagination
+          v-if="historyTotal > 10"
+          class="ai-chart__history-page"
+          layout="prev, pager, next"
+          :total="historyTotal"
+          :page-size="10"
+          :current-page="historyPageNum"
+          @current-change="(page: number) => { historyPageNum = page; loadHistory(); }"
+        />
+      </div>
+    </ElDialog>
   </div>
 </template>
 
@@ -149,5 +264,40 @@ async function generate(): Promise<void> {
 
 .ai-chart--dark .ai-chart__explanation {
   color: #9aa7bd;
+}
+
+.ai-chart__history {
+  min-height: 120px;
+}
+
+.ai-chart__history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.ai-chart__history-item:last-child {
+  border-bottom: none;
+}
+
+.ai-chart__history-title {
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.ai-chart__history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.ai-chart__history-page {
+  justify-content: center;
+  margin-top: 12px;
 }
 </style>
