@@ -14,3 +14,6 @@ pnpm-debug.log*
 
 # 本地预览临时脚本（S90 测试产物，不入库）
 apps/admin/preview_server.py
+
+# 构建产物压缩包（本地临时）
+*.zip
