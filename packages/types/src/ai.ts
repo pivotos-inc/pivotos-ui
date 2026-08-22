@@ -1,3 +1,5 @@
+import type { Emptyable, PageQuery } from './common';
+
 /* ================= AI 对话 ================= */
 
 /** AI 会话视图对象（对齐 ConversationVO） */
@@ -469,4 +471,70 @@ export interface AiUsageUserVO {
   calls: number | string;
   /** 总 token 合计 */
   totalTokens: number | string;
+}
+
+/* ================= AI 工具管理（S98 A2 注册 / S99 管理页） ================= */
+
+/** AI 工具注册视图（对齐 AiToolVO） */
+export interface AiToolVO {
+  id: string;
+  /** 工具名（@Tool name，全局唯一） */
+  toolName: string;
+  /** 展示名（缺省同工具名） */
+  displayName?: string;
+  /** 工具描述（同步自 @Tool description） */
+  description?: string;
+  /** 工具类型：read=只读 write=写操作 */
+  toolType: string;
+  /** 写操作是否需二次确认（0否 1是） */
+  confirmRequired?: number;
+  /** 状态（0正常 1停用） */
+  status?: number;
+  /** 来源（register=@Tool 扫描自动注册） */
+  source?: string;
+  /** 注册时间 */
+  createTime?: string;
+  /** 角色白名单编码（空 = 登录用户皆可调用，* 为通配） */
+  roles?: string[];
+}
+
+/** AI 工具调用审计视图（对齐 AiToolInvokeVO） */
+export interface AiToolInvokeVO {
+  id: string;
+  /** 工具名 */
+  toolName: string;
+  /** 调用人 ID（未登录链路为空） */
+  userId?: string;
+  /** 入参摘要 */
+  argsSummary?: string;
+  /** 调用状态：success/fail/forbidden/need_confirm */
+  invokeStatus: string;
+  /** 失败/拒绝原因 */
+  errorMsg?: string;
+  /** 执行耗时（毫秒） */
+  costMs?: number | string;
+  /** 链路追踪 ID */
+  traceId?: string;
+  /** 调用时间 */
+  createTime?: string;
+}
+
+/** AI 工具分页查询（对齐 AiToolQuery） */
+export interface AiToolQuery extends PageQuery {
+  /** 工具名（模糊） */
+  toolName?: string;
+  /** 工具类型（read/write） */
+  toolType?: Emptyable<string>;
+  /** 状态（0正常 1停用） */
+  status?: Emptyable<number>;
+}
+
+/** AI 工具调用审计分页查询（对齐 AiToolInvokeQuery） */
+export interface AiToolInvokeQuery extends PageQuery {
+  /** 工具名（模糊） */
+  toolName?: string;
+  /** 调用状态（success/fail/forbidden/need_confirm） */
+  invokeStatus?: Emptyable<string>;
+  /** 调用人 ID */
+  userId?: string;
 }
