@@ -1,3 +1,4 @@
+import { getToken } from '@pivotos/core';
 import { request } from '../request';
 
 // ==================== 类型定义 ====================
@@ -203,4 +204,113 @@ export function completeMigrationTask(taskId: string): Promise<void> {
 /** 任务级回滚：删除全部已落盘文件 */
 export function rollbackMigrationTask(taskId: string): Promise<number> {
   return request.post<unknown, number>(`/migration/task/rollback?taskId=${taskId}`);
+}
+
+// ==================== 进度 SSE 流 ====================
+
+/** 迁移进度 SSE 事件载荷（后端技术方案 §9.3） */
+export interface MigrationProgressEvent {
+  /** 事件类型：CONNECTED/PARSE/ANALYZE/PLAN/STEP_PROGRESS/REVIEW/APPLY */
+  eventType: string;
+  taskId: string;
+  stepId?: string;
+  stepNo?: number;
+  stepName?: string;
+  /** 业务状态：EXECUTING/DONE/FAILED/APPROVED/REJECTED/APPLIED/ROLLED_BACK 等 */
+  status: string;
+  /** 进度百分比（0~100，-1 表示失败/不适用） */
+  progressPercent?: number;
+  message?: string;
+  timestamp?: number;
+}
+
+/** 迁移进度 SSE 回调 */
+export interface MigrationProgressCallbacks {
+  onEvent?: (event: MigrationProgressEvent) => void;
+  onError?: (msg: string) => void;
+}
+
+/**
+ * 订阅迁移任务进度流：POST /migration/task/progress，手动解析 SSE。
+ * EventSource 不支持 POST + 请求头，故用 fetch + ReadableStream 按空行分帧解析
+ * （与 AI 对话流式端点同款约定）；错误统一走 onError，不 reject。
+ */
+export async function subscribeMigrationProgress(
+  taskId: string,
+  callbacks: MigrationProgressCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/migration/task/progress?taskId=${taskId}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+        // 后端 token-name = Authorization，未配置 token-prefix，发裸值
+        Authorization: getToken(),
+      },
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') {
+      callbacks.onError?.('进度流连接失败，请稍后重试');
+    }
+    return;
+  }
+
+  // 流建立前的业务异常（未登录/任务不存在等）返回 JSON 的 R 错误体
+  if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    let msg = `请求失败（HTTP ${response.status}）`;
+    try {
+      const r = (await response.json()) as { msg?: string };
+      if (r.msg) msg = r.msg;
+    } catch {
+      /* 非 JSON 响应体，保留默认提示 */
+    }
+    callbacks.onError?.(msg);
+    return;
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE 帧以空行分隔；末段可能不完整，留在 buffer 等下一批
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        dispatchProgressFrame(frame, callbacks);
+      }
+    }
+    // 流结束后 flush decoder 并处理残留 buffer
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      dispatchProgressFrame(buffer.trim(), callbacks);
+    }
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') {
+      callbacks.onError?.('进度流连接中断，请稍后重试');
+    }
+  }
+}
+
+/** 解析单个 SSE 帧（event: 名称 + data: JSON），统一分发到 onEvent */
+function dispatchProgressFrame(frame: string, callbacks: MigrationProgressCallbacks): void {
+  let data = '';
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('data:')) {
+      data += line.slice(5).trimStart();
+    }
+  }
+  if (!data) return;
+  try {
+    const payload = JSON.parse(data) as MigrationProgressEvent;
+    callbacks.onEvent?.(payload);
+  } catch {
+    /* 非 JSON 载荷忽略（心跳/注释帧） */
+  }
 }
