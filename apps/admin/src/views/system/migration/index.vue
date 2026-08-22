@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineOptions({ name: 'ToolMigration' });
-import { reactive, ref } from 'vue';
+import { onBeforeUnmount, reactive, ref, watch } from 'vue';
 import {
   ElButton,
   ElDescriptions,
@@ -8,6 +8,7 @@ import {
   ElDialog,
   ElMessage,
   ElMessageBox,
+  ElProgress,
   ElTable,
   ElTableColumn,
   ElTag,
@@ -42,6 +43,8 @@ import {
   applyStepArtifacts,
   completeMigrationTask,
   rollbackMigrationTask,
+  subscribeMigrationProgress,
+  type MigrationProgressEvent,
 } from '@/api/system/migration';
 import { useTablePage } from '@/hooks';
 
@@ -202,11 +205,68 @@ async function openDetail(row: MigrationTaskVO): Promise<void> {
   backendFile.value = null;
   frontendFile.value = null;
   migrationSteps.value = [];
+  progressEvent.value = null;
   if (task.status >= 6) {
     migrationSteps.value = await listMigrationSteps(task.id).catch(() => []);
   }
   detailVisible.value = true;
+  subscribeProgress(task.id);
 }
+
+// ==================== 进度 SSE 订阅 ====================
+
+/** 当前详情弹窗的进度流控制器 */
+const progressAbort = ref<AbortController | null>(null);
+/** 最近一条进度事件（驱动进度条与消息展示） */
+const progressEvent = ref<MigrationProgressEvent | null>(null);
+/** 终态事件触发的详情刷新防重入标记 */
+const refreshing = ref(false);
+
+/** 触发详情刷新的终态业务状态 */
+const TERMINAL_STATUSES = new Set(['DONE', 'FAILED', 'SELF_TEST_PASSED', 'APPROVED', 'REJECTED', 'ROLLED_BACK']);
+
+function subscribeProgress(taskId: string): void {
+  disconnectProgress();
+  const controller = new AbortController();
+  progressAbort.value = controller;
+  void subscribeMigrationProgress(
+    taskId,
+    {
+      onEvent: (event) => {
+        // 详情弹窗已切换或关闭时丢弃陈旧事件
+        if (!detailTask.value || detailTask.value.id !== event.taskId) return;
+        progressEvent.value = event;
+        if (TERMINAL_STATUSES.has(event.status) && !refreshing.value) {
+          refreshing.value = true;
+          refreshDetailAndSteps().finally(() => {
+            refreshing.value = false;
+          });
+        }
+      },
+      onError: (msg) => {
+        ElMessage.warning(msg);
+      },
+    },
+    controller.signal,
+  );
+}
+
+function disconnectProgress(): void {
+  progressAbort.value?.abort();
+  progressAbort.value = null;
+}
+
+// 弹窗关闭时断开进度流，避免连接泄漏
+watch(detailVisible, (visible) => {
+  if (!visible) {
+    disconnectProgress();
+    progressEvent.value = null;
+  }
+});
+
+onBeforeUnmount(() => {
+  disconnectProgress();
+});
 
 function onBackendFileChange(uploadFile: UploadFile): void {
   backendFile.value = uploadFile.raw ?? null;
@@ -537,6 +597,20 @@ function statusToStep(status: number): number {
           </ElDescriptionsItem>
         </ElDescriptions>
 
+        <!-- 实时进度（SSE 推送，技术方案 §9.3） -->
+        <div v-if="progressEvent?.message" class="migration-progress">
+          <ElProgress
+            v-if="progressEvent.progressPercent != null && progressEvent.progressPercent >= 0"
+            :percentage="progressEvent.progressPercent"
+            :status="progressEvent.status === 'FAILED' ? 'exception' : undefined"
+            :stroke-width="8"
+            class="migration-progress-bar"
+          />
+          <span class="migration-progress-msg">
+            {{ progressEvent.stepName ? `【${progressEvent.stepName}】` : '' }}{{ progressEvent.message }}
+          </span>
+        </div>
+
         <!-- 操作区 -->
         <div class="migration-actions">
           <!-- 阶段 1：上传源码包（状态 0-2 可上传） -->
@@ -819,6 +893,26 @@ function statusToStep(status: number): number {
 
 .migration-desc {
   margin-bottom: 16px;
+}
+
+.migration-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: var(--el-color-primary-light-9);
+  border-radius: 6px;
+}
+
+.migration-progress-bar {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.migration-progress-msg {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 .migration-json {
