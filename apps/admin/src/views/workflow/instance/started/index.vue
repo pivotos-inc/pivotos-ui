@@ -15,7 +15,7 @@ import {
   ElTimeline,
   ElTimelineItem,
 } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Delete } from '@element-plus/icons-vue';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import { UserSelect } from '@pivotos/components';
@@ -97,10 +97,33 @@ const startForm = reactive<{ flowCode: string; businessName: string; ccUserIds: 
   ccUserIds: [],
 });
 
+// ---------- 流程变量（S93）：键值对录入，供网关节点条件表达式（如 eq@@days|3）消费 ----------
+const startVars = ref<{ key: string; value: string }[]>([]);
+
+function addStartVar(): void {
+  startVars.value.push({ key: '', value: '' });
+}
+
+function removeStartVar(index: number): void {
+  startVars.value.splice(index, 1);
+}
+
+/** 组装 variable：纯整数转 number（条件比较走 String.valueOf，数字口径更稳） */
+function buildStartVariable(): Record<string, string | number> | undefined {
+  const variable: Record<string, string | number> = {};
+  for (const row of startVars.value) {
+    const key = row.key.trim();
+    if (!key) continue;
+    variable[key] = /^-?\d+$/.test(row.value.trim()) ? Number(row.value.trim()) : row.value.trim();
+  }
+  return Object.keys(variable).length > 0 ? variable : undefined;
+}
+
 async function openStart(): Promise<void> {
   startForm.flowCode = '';
   startForm.businessName = '';
   startForm.ccUserIds = [];
+  startVars.value = [];
   startVisible.value = true;
   defsLoading.value = true;
   try {
@@ -132,6 +155,7 @@ async function submitStart(): Promise<void> {
       flowCode: startForm.flowCode,
       businessName: startForm.businessName || undefined,
       ccUserIds: startForm.ccUserIds.length > 0 ? startForm.ccUserIds : undefined,
+      variable: buildStartVariable(),
     });
     ElMessage.success(startForm.ccUserIds.length > 0 ? '流程发起成功，抄送人已收到通知' : '流程发起成功');
     startVisible.value = false;
@@ -248,6 +272,19 @@ function canOperate(row: WorkflowInstanceVO): boolean {
         </ElFormItem>
         <ElFormItem label="业务名称">
           <ElInput v-model="startForm.businessName" placeholder="如：张三的请假单（可选）" />
+        </ElFormItem>
+        <ElFormItem label="流程变量">
+          <div style="width: 100%">
+            <div v-for="(row, i) in startVars" :key="i" style="display: flex; gap: 8px; margin-bottom: 8px">
+              <ElInput v-model="row.key" placeholder="变量名（如 days）" style="flex: 2" />
+              <ElInput v-model="row.value" placeholder="值（如 3）" style="flex: 3" />
+              <ElButton :icon="Delete" circle @click="removeStartVar(i)" />
+            </div>
+            <ElButton size="small" :icon="Plus" @click="addStartVar">添加变量</ElButton>
+            <div style="color: #909399; font-size: 12px; margin-top: 4px">
+              供条件分支网关使用，如请假天数分档审批（可选）
+            </div>
+          </div>
         </ElFormItem>
         <ElFormItem label="抄送给">
           <UserSelect v-model="startForm.ccUserIds" multiple :fetch-options="fetchUserOptions" placeholder="搜索并选择抄送人（可多选，可选）" />

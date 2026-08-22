@@ -32,6 +32,9 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_BASE_URL || 'http://localhost:8080',
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, ''),
+          // 大文件上传支持：5 分钟代理超时
+          proxyTimeout: 300_000,
+          timeout: 300_000,
         },
       },
     },

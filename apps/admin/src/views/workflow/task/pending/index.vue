@@ -184,16 +184,22 @@ const FLOW_STATUS_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' 
 
 const SKIP_TYPE_LABEL: Record<string, string> = {
   PASS: '通过', REJECT: '驳回', NONE: '无动作', TRANSFER: '转办', DEPUTE: '委派',
-  ADD_SIGNATURE: '加签', REDUCTION_SIGNATURE: '减签', REVOKE: '撤回', TERMINATION: '终止',
+  ADD_SIGNATURE: '加签', REDUCTION_SIGNATURE: '减签', COUNTERSIGN: '会签', VOTE: '票签',
+  REVOKE: '撤回', TERMINATION: '终止',
 };
 
 const SKIP_TYPE_TAG: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
   PASS: 'success', REJECT: 'danger', NONE: 'info', TRANSFER: 'warning', DEPUTE: 'warning',
-  ADD_SIGNATURE: 'warning', REDUCTION_SIGNATURE: 'warning', REVOKE: 'info', TERMINATION: 'danger',
+  ADD_SIGNATURE: 'warning', REDUCTION_SIGNATURE: 'warning', COUNTERSIGN: 'primary', VOTE: 'primary',
+  REVOKE: 'info', TERMINATION: 'danger',
 };
 
-/** 加签/减签留痕的 skipType 为 NONE，展示以 cooperateType 优先（6=加签、7=减签） */
+/** 转办/委派/加签/减签/会签/票签留痕的 skipType 为 NONE，展示以 cooperateType 优先（2=转办、3=委派、4=会签、5=票签、6=加签、7=减签；S93 补转办/委派，S94 补会签/票签） */
 function effSkipType(item: WorkflowHisTaskVO): string {
+  if (item.cooperateType === 2) return 'TRANSFER';
+  if (item.cooperateType === 3) return 'DEPUTE';
+  if (item.cooperateType === 4) return 'COUNTERSIGN';
+  if (item.cooperateType === 5) return 'VOTE';
   if (item.cooperateType === 6) return 'ADD_SIGNATURE';
   if (item.cooperateType === 7) return 'REDUCTION_SIGNATURE';
   return item.skipType ?? '';

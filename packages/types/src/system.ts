@@ -449,3 +449,68 @@ export interface JobLogQuery extends PageQuery {
   beginTime?: string;
   endTime?: string;
 }
+
+/* ================= 定时任务管理（S89） ================= */
+
+/** 定时任务视图对象（对齐 JobVO） */
+export interface JobVO extends BaseVO {
+  /** @XxlJob handler 名 */
+  jobHandler: string;
+  /** 任务显示名 */
+  jobName: string;
+  /** 调度类型：NONE/CRON/FIX_RATE */
+  scheduleType: string;
+  /** 调度配置（Cron 表达式或固定速率秒数） */
+  scheduleConf?: string;
+  /** 任务参数 */
+  executorParam?: string;
+  /** 过期策略：DO_NOTHING/FIRE_ONCE_NOW */
+  misfireStrategy?: string;
+  /** 路由策略 */
+  executorRouteStrategy?: string;
+  /** 阻塞策略 */
+  executorBlockStrategy?: string;
+  /** 执行超时秒数（0=不限） */
+  executorTimeout?: number;
+  /** 失败重试次数（0=不重试） */
+  executorFailRetryCount?: number;
+  /** 调度状态：0 暂停 1 运行 */
+  triggerStatus: number;
+  /** XXL-Job 侧 job ID（同步后回写） */
+  xxlJobId?: number;
+  /** 下次调度时间（时间戳，毫秒） */
+  triggerNextTime?: number;
+  /** 上次调度时间（时间戳，毫秒） */
+  triggerLastTime?: number;
+}
+
+/** 定时任务新增/修改请求（对齐 JobSaveRequest） */
+export interface JobSaveRequest {
+  /** 任务 ID（修改时必填） */
+  id?: string;
+  jobHandler: string;
+  jobName: string;
+  /** 调度类型：NONE/CRON/FIX_RATE */
+  scheduleType: string;
+  /** 调度配置（Cron 表达式或固定速率秒数） */
+  scheduleConf?: string;
+  executorParam?: string;
+  misfireStrategy?: string;
+  executorRouteStrategy?: string;
+  executorBlockStrategy?: string;
+  executorTimeout?: number;
+  executorFailRetryCount?: number;
+}
+
+/** 定时任务分页查询（对齐 JobQuery） */
+export interface JobQuery extends PageQuery {
+  jobName?: string;
+  jobHandler?: string;
+  triggerStatus?: Emptyable<number>;
+}
+
+/** 已注册 Handler 元数据（对齐 JobHandlerInfo） */
+export interface JobHandlerVO {
+  handler: string;
+  displayName: string;
+}
