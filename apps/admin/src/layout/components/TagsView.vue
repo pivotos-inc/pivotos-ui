@@ -11,7 +11,7 @@ import {
 } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
-import { useTagsViewStore, type TagView } from '@/stores/tagsView';
+import { useTagsViewStore, persistTagsView, type TagView } from '@/stores/tagsView';
 import { translateMenuTitle } from '@/locales';
 
 const { t } = useI18n();
@@ -23,6 +23,13 @@ watch(
   () => route.fullPath,
   () => tagsViewStore.addView(route),
   { immediate: true },
+);
+
+// 持久化标签布局：增删 / 拖拽排序 / 固定切换后写 localStorage，刷新浏览器或下次登录时恢复
+watch(
+  () => tagsViewStore.visitedViews,
+  (views) => persistTagsView(views),
+  { deep: true },
 );
 
 function isActive(view: TagView): boolean {

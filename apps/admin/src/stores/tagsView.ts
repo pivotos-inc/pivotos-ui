@@ -28,10 +28,40 @@ interface TagsViewState {
   refreshKeys: Record<string, number>;
 }
 
+/** 标签页布局持久化键（localStorage） */
+const STORAGE_KEY = 'pivotos-tags-view';
+
+/** 启动时恢复上次标签布局：逐条校验形状，坏数据整体丢弃 */
+function loadPersisted(): TagView[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr: unknown = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (v): v is TagView =>
+        !!v &&
+        typeof (v as TagView).fullPath === 'string' &&
+        typeof (v as TagView).title === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** 标签布局变化后落盘（增删 / 排序 / 固定切换都会触发） */
+export function persistTagsView(views: TagView[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+  } catch {
+    // 隐私模式 / 存储已满等写入失败场景静默降级为不持久化
+  }
+}
+
 /** 多标签页 store（布局框架 TagsView 数据源） */
 export const useTagsViewStore = defineStore('tagsView', {
   state: (): TagsViewState => ({
-    visitedViews: [],
+    visitedViews: loadPersisted(),
     excludedCachedNames: [],
     refreshKeys: {},
   }),
@@ -123,6 +153,12 @@ export const useTagsViewStore = defineStore('tagsView', {
       this.visitedViews = [];
       this.excludedCachedNames = [];
       this.refreshKeys = {};
+      // 登出 / 401 时同步清掉持久化的标签布局，避免串到下一个登录用户
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // 同上：静默降级
+      }
     },
   },
 });
