@@ -79,6 +79,8 @@ async function handleSave(): Promise<void> {
     await saveDefJson(def);
     savedFlowCode.value = def.flowCode;
     ElMessage.success(`保存成功：${def.flowName}（${def.flowCode}），已入库未发布`);
+  } catch (e) {
+    ElMessage.error(`保存失败：${(e as Error).message}`);
   } finally {
     saving.value = false;
   }
@@ -96,31 +98,41 @@ async function findLatestDefinitionId(): Promise<string | null> {
 }
 
 async function handleRoundtrip(): Promise<void> {
-  const id = await findLatestDefinitionId();
-  if (!id) {
-    ElMessage.warning('未找到已保存定义，请先保存');
-    return;
+  try {
+    const id = await findLatestDefinitionId();
+    if (!id) {
+      ElMessage.warning('未找到已保存定义，请先保存');
+      return;
+    }
+    const def = await queryDefJson(id);
+    // 回读 DefJson → BPMN XML 重新载入画布（验证回显链路）
+    if (modeler) {
+      await modeler.importXML(defJsonToBpmnXml(def));
+      fitViewport();
+    }
+    previewJson.value = JSON.stringify(def, null, 2);
+    previewVisible.value = true;
+    ElMessage.success(`回读成功（id=${id}），画布已按服务端数据重建`);
+  } catch (e) {
+    ElMessage.error(`回读失败：${(e as Error).message}`);
   }
-  const def = await queryDefJson(id);
-  // 回读 DefJson → BPMN XML 重新载入画布（验证回显链路）
-  if (modeler) {
-    await modeler.importXML(defJsonToBpmnXml(def));
-    fitViewport();
-  }
-  previewJson.value = JSON.stringify(def, null, 2);
-  previewVisible.value = true;
-  ElMessage.success(`回读成功（id=${id}），画布已按服务端数据重建`);
 }
 
 async function handlePublish(): Promise<void> {
-  const id = await findLatestDefinitionId();
-  if (!id) {
-    ElMessage.warning('未找到已保存定义，请先保存');
-    return;
+  try {
+    const id = await findLatestDefinitionId();
+    if (!id) {
+      ElMessage.warning('未找到已保存定义，请先保存');
+      return;
+    }
+    await ElMessageBox.confirm(`确定发布流程定义（id=${id}）吗？`, '提示', { type: 'warning' });
+    await publishDefinition(id);
+    ElMessage.success('发布成功，可到「我发起的」发起实例验证走向');
+  } catch (e) {
+    if ((e as Error).message !== 'cancel') {
+      ElMessage.error(`发布失败：${(e as Error).message}`);
+    }
   }
-  await ElMessageBox.confirm(`确定发布流程定义（id=${id}）吗？`, '提示', { type: 'warning' });
-  await publishDefinition(id);
-  ElMessage.success('发布成功，可到「我发起的」发起实例验证走向');
 }
 
 // ---------- 导出 XML ----------
