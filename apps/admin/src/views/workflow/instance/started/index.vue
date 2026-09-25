@@ -267,7 +267,13 @@ function canOperate(row: WorkflowInstanceVO): boolean {
       <ElForm label-width="90">
         <ElFormItem label="选择流程">
           <ElSelect v-model="startForm.flowCode" :loading="defsLoading" placeholder="请选择已发布的流程" style="width: 100%">
-            <ElOption v-for="d in startableDefs" :key="d.id" :label="d.flowName" :value="d.flowCode" />
+            <!-- S104 搭车修：同名定义（不同 flowCode/版本）加后缀区分 -->
+            <ElOption
+              v-for="d in startableDefs"
+              :key="d.id"
+              :label="`${d.flowName}（${d.flowCode} v${d.version ?? '-'}）`"
+              :value="d.flowCode"
+            />
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="业务名称">
