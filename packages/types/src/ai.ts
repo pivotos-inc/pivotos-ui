@@ -473,6 +473,58 @@ export interface AiUsageUserVO {
   totalTokens: number | string;
 }
 
+/* ================= AI 审批助手（S101 A3） ================= */
+
+/** 审批建议制度引用（对齐 ApprovalReferenceVO） */
+export interface ApprovalReferenceVO {
+  /** 命中分块 ID */
+  chunkId?: string;
+  /** 来源文件名 */
+  fileName?: string;
+  /** 依据摘录（≤200 字） */
+  quote?: string;
+}
+
+/** 审批建议视图对象（对齐 ApprovalAdviceVO，GET /ai/approval/advice/{taskId}/latest） */
+export interface ApprovalAdviceVO {
+  id: string;
+  taskId: string;
+  /** 结论三态：approve 建议通过 / reject 建议驳回 / need_info 需补充材料 */
+  conclusion?: string;
+  /** 结论理由 */
+  reason?: string;
+  /** 制度依据引用（无依据为空） */
+  references?: ApprovalReferenceVO[];
+  /** 检索所用知识库 ID（无制度依据为空） */
+  kbId?: string;
+  createTime?: string;
+}
+
+/** 审批建议生成请求（对齐 ApprovalAdviceRequest；kbId 空 = 后端默认库策略） */
+export interface ApprovalAdviceBody {
+  taskId: string;
+  kbId?: string;
+}
+
+/** 审批建议 SSE meta 事件载荷（流开始时下发） */
+export interface ApprovalAdviceStreamMeta {
+  taskId?: string;
+  instanceId?: string;
+  kbId?: string;
+  /** 免责声明：AI 建议仅供参考，审批责任仍归审批人 */
+  disclaimer?: string;
+}
+
+/** 审批建议 SSE done 事件载荷（建议落库完成，结构化结论在此帧） */
+export interface ApprovalAdviceStreamDone {
+  adviceId?: string;
+  conclusion?: string;
+  reason?: string;
+  references?: ApprovalReferenceVO[];
+  /** 免责声明：AI 建议仅供参考，审批责任仍归审批人 */
+  disclaimer?: string;
+}
+
 /* ================= AI 工具管理（S98 A2 注册 / S99 管理页） ================= */
 
 /** AI 工具注册视图（对齐 AiToolVO） */

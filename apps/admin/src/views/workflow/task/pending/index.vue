@@ -23,6 +23,7 @@ import type { WorkflowHisTaskVO, WorkflowTaskQuery, WorkflowTaskVO, WorkflowUser
 import { passTask, rejectTask, transferTask, deputeTask, addSignatureTask, reductionSignatureTask, taskApprovers, taskHistory } from '@/api/workflow/task';
 import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
+import ApprovalAdviceDrawer from './ApprovalAdviceDrawer.vue';
 
 // ---------- 列表 ----------
 const { loading, rows, total, params, load, search, reset } = useTablePage<WorkflowTaskVO, WorkflowTaskQuery>({
@@ -165,6 +166,15 @@ async function submitReduction(): Promise<void> {
   }
 }
 
+// ---------- AI 审批建议抽屉（S101 A3 前端接入） ----------
+const adviceVisible = ref(false);
+const adviceTaskId = ref('');
+
+function openAdvice(row: WorkflowTaskVO): void {
+  adviceTaskId.value = row.id;
+  adviceVisible.value = true;
+}
+
 // ---------- 审批历史弹窗 ----------
 const historyVisible = ref(false);
 const historyLoading = ref(false);
@@ -235,9 +245,12 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
           {{ FLOW_STATUS_LABEL[(row as WorkflowTaskVO).flowStatus ?? ''] ?? (row as WorkflowTaskVO).flowStatus ?? '待审批' }}
         </ElTag>
       </template>
-      <ElTableColumn label="操作" width="380" align="center" fixed="right">
+      <ElTableColumn label="操作" width="460" align="center" fixed="right">
         <template #default="{ row }">
           <template v-if="(row as WorkflowTaskVO).flowStatus === '1'">
+            <ElButton link type="primary" @click="openAdvice(row as WorkflowTaskVO)">
+              AI 建议
+            </ElButton>
             <ElButton v-hasPermi="'workflow:task:approve'" link type="success" @click="openApprove(row as WorkflowTaskVO, 'pass')">
               通过
             </ElButton>
@@ -318,6 +331,9 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
         <ElButton type="primary" :loading="redLoading" @click="submitReduction">确定</ElButton>
       </template>
     </ElDialog>
+
+    <!-- AI 审批建议抽屉（S101 A3） -->
+    <ApprovalAdviceDrawer v-model="adviceVisible" :task-id="adviceTaskId" />
 
     <!-- 审批历史弹窗 -->
     <ElDialog v-model="historyVisible" title="审批历史" width="600" destroy-on-close>
