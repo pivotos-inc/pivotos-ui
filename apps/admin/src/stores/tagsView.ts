@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type { RouteLocationNormalized } from 'vue-router';
+import { getConfigValueByKey } from '@/api/system/config';
 
 /** 多标签页视图项 */
 export interface TagView {
@@ -31,8 +32,35 @@ interface TagsViewState {
 /** 标签页布局持久化键（localStorage） */
 const STORAGE_KEY = 'pivotos-tags-view';
 
-/** 启动时恢复上次标签布局：逐条校验形状，坏数据整体丢弃 */
+/** 参数设置里的开关键名（sys_config） */
+const PERSIST_CONFIG_KEY = 'sys.tagsview.persistEnabled';
+
+/**
+ * 持久化总开关：默认开启（配置接口失败 / 老后端无此配置时保持既有行为）。
+ * 由路由守卫在会话装配时调 loadTagsViewPersistConfig 刷新。
+ */
+let persistEnabled = true;
+
+/** 从参数设置读取持久化开关；关闭时顺带清掉已存布局 */
+export async function loadTagsViewPersistConfig(): Promise<void> {
+  try {
+    const value = await getConfigValueByKey(PERSIST_CONFIG_KEY);
+    persistEnabled = value !== 'false';
+  } catch {
+    persistEnabled = true;
+  }
+  if (!persistEnabled) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // 静默降级
+    }
+  }
+}
+
+/** 启动时恢复上次标签布局：开关关闭或坏数据时整体不恢复 */
 function loadPersisted(): TagView[] {
+  if (!persistEnabled) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -49,8 +77,9 @@ function loadPersisted(): TagView[] {
   }
 }
 
-/** 标签布局变化后落盘（增删 / 排序 / 固定切换都会触发） */
+/** 标签布局变化后落盘（增删 / 排序 / 固定切换都会触发）；开关关闭时不写 */
 export function persistTagsView(views: TagView[]): void {
+  if (!persistEnabled) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
   } catch {
