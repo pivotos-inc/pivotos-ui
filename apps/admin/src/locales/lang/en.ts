@@ -18,8 +18,16 @@ export default {
     logout: 'Sign out',
     logoutConfirm: 'Are you sure to sign out?',
     tip: 'Notice',
+    refresh: 'Refresh',
+    closeCurrent: 'Close current',
     closeOthers: 'Close others',
+    closeLeft: 'Close left',
+    closeRight: 'Close right',
     closeAll: 'Close all',
+    moveToFirst: 'Move to leftmost',
+    moveToLast: 'Move to rightmost',
+    affix: 'Pin tab',
+    unaffix: 'Unpin tab',
   },
   // Menu i18n: key = backend menu name (sys_menu.menu_name)
   menu: {

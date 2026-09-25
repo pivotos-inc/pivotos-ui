@@ -1,4 +1,4 @@
-import { reactive, ref, type Ref } from 'vue';
+import { getCurrentInstance, onActivated, reactive, ref, type Ref } from 'vue';
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import type { PageQuery, PageResult } from '@pivotos/types';
 
@@ -9,6 +9,11 @@ export interface TablePageOptions<T, Q extends PageQuery = PageQuery> {
   query?: Q;
   /** 进入页面立即加载，默认 true */
   immediate?: boolean;
+  /**
+   * 标签页重新激活（keep-alive 唤醒）时自动刷新数据，默认 true。
+   * 只重新拉取当前页数据，分页、查询条件等页面状态全部保留。
+   */
+  refreshOnActivate?: boolean;
   /** 响应数据后处理 */
   transform?: (rows: T[]) => T[];
 }
@@ -66,6 +71,19 @@ export function createUseTablePage(request: AxiosInstance) {
     }
 
     if (immediate) void load();
+
+    // 切换回标签页时刷新数据（分页 / 查询条件由 keep-alive 保留，这里只重拉当前页）
+    if (getCurrentInstance() && (options.refreshOnActivate ?? true)) {
+      // 首次激活紧接 immediate 首载，跳过避免重复请求
+      let skipFirstActivation = immediate;
+      onActivated(() => {
+        if (skipFirstActivation) {
+          skipFirstActivation = false;
+          return;
+        }
+        void load();
+      });
+    }
 
     return { loading, rows, total, params, load, search, reset };
   };
