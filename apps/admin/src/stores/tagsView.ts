@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type { RouteLocationNormalized } from 'vue-router';
+import { setGlobalRefreshOnActivate } from '@pivotos/core';
 import { getConfigValueByKey } from '@/api/system/config';
 
 /** 多标签页视图项 */
@@ -35,14 +36,21 @@ const STORAGE_KEY = 'pivotos-tags-view';
 /** 参数设置里的开关键名（sys_config） */
 const PERSIST_CONFIG_KEY = 'sys.tagsview.persistEnabled';
 
+/** 参数设置里的"切 tab 自动刷新"开关键名（sys_config） */
+const REFRESH_CONFIG_KEY = 'sys.tagsview.refreshOnActivate';
+
 /**
  * 持久化总开关：默认开启（配置接口失败 / 老后端无此配置时保持既有行为）。
- * 由路由守卫在会话装配时调 loadTagsViewPersistConfig 刷新。
+ * 由路由守卫在会话装配时调 loadTagsViewUiConfig 刷新。
  */
 let persistEnabled = true;
 
-/** 从参数设置读取持久化开关；关闭时顺带清掉已存布局 */
-export async function loadTagsViewPersistConfig(): Promise<void> {
+/**
+ * 会话装配时一次性加载多标签页相关的系统参数开关。
+ * 内部逐项自兜底不抛错，失败时按默认开启处理。
+ */
+export async function loadTagsViewUiConfig(): Promise<void> {
+  // 布局持久化开关；关闭时顺带清掉已存布局
   try {
     const value = await getConfigValueByKey(PERSIST_CONFIG_KEY);
     persistEnabled = value !== 'false';
@@ -55,6 +63,14 @@ export async function loadTagsViewPersistConfig(): Promise<void> {
     } catch {
       // 静默降级
     }
+  }
+
+  // 切 tab 自动刷新全局开关（页面可用 refreshOnActivate 选项覆盖）
+  try {
+    const value = await getConfigValueByKey(REFRESH_CONFIG_KEY);
+    setGlobalRefreshOnActivate(value !== 'false');
+  } catch {
+    setGlobalRefreshOnActivate(true);
   }
 }
 

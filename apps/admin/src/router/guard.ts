@@ -2,7 +2,7 @@ import type { Router } from 'vue-router';
 import { hasPermi } from '@pivotos/core';
 import { useUserStore } from '@/stores/user';
 import { usePermissionStore } from '@/stores/permission';
-import { useTagsViewStore, loadTagsViewPersistConfig } from '@/stores/tagsView';
+import { useTagsViewStore, loadTagsViewUiConfig } from '@/stores/tagsView';
 
 const WHITE_LIST = ['/login'];
 
@@ -32,9 +32,9 @@ export function setupGuard(router: Router): void {
       try {
         await userStore.fetchInfo();
         await permissionStore.generateRoutes();
-        // 标签页持久化开关（系统参数 sys.tagsview.persistEnabled）随会话装配加载，
-        // 内部自兜底不抛错，失败时按默认开启处理
-        await loadTagsViewPersistConfig();
+        // 多标签页 UI 开关（持久化 + 激活自动刷新，系统参数下发）随会话装配加载，
+        // 内部逐项自兜底不抛错，失败时按默认开启处理
+        await loadTagsViewUiConfig();
       } catch {
         // Token 失效等场景：清会话回登录页
         resetSession();

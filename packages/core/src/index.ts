@@ -19,7 +19,7 @@ export { vHasPermi, vHasRole, setupPermissionDirectives } from './directives/per
 
 // hooks（工厂模式：注入 request 实例后使用）
 export { createUseDict } from './hooks/useDict';
-export { createUseTablePage } from './hooks/useTablePage';
+export { createUseTablePage, setGlobalRefreshOnActivate } from './hooks/useTablePage';
 export { createUseDownload } from './hooks/useDownload';
 
 // 工具
