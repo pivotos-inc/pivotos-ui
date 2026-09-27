@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * 顺序流（边）属性面板（S104 一期）：边名称 + skipType（通过/驳回）+ 条件结构化编辑。
+ * 顺序流（边）属性面板：边名称 + skipType（通过/驳回）+ 条件结构化编辑。
  * 条件按 14 号清单第六节决策走结构化表单生成 DSL：比较符 + 变量 + 值 → `le@@days|3`（踩坑 26 口径固化）。
+ * S105 完整版：变量字典联想（画布已用变量 + 预置常用变量）+ 三段校验强化（变量名正则/必填提示，半成品不落 DSL）。
  */
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type Modeler from 'bpmn-js/lib/Modeler';
-import { ElAlert, ElForm, ElFormItem, ElInput, ElOption, ElSelect } from 'element-plus';
+import { ElAlert, ElAutocomplete, ElForm, ElFormItem, ElInput, ElOption, ElSelect } from 'element-plus';
 import { readCondition, readName, readWarmAttr, writeCondition, writeName, writeWarmAttr, type PanelElement } from '../modelerProps';
 
 const props = defineProps<{ modeler: Modeler | null; element: PanelElement; version: number }>();
@@ -20,11 +21,18 @@ const OPS = [
   { value: 'le', label: '小于等于（le）' },
 ];
 
+/** 变量名合法性格式（warm-flow 条件变量进入表达式求值，限标识符） */
+const VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** 预置常用变量（平台无变量注册处，字典 = 画布已用变量 ∪ 预置） */
+const PRESET_VARS = ['days', 'amount'];
+
 const edgeName = ref('');
 const skipType = ref<'PASS' | 'REJECT'>('PASS');
 const condOp = ref('');
 const condVar = ref('');
 const condValue = ref('');
+/** 三段任一非空但未通过校验时的提示（半成品不落 DSL，防脏数据） */
+const condError = ref('');
 /** 非标准格式的存量条件原文（展示不吞掉，用户重建后覆盖） */
 const rawCondition = ref('');
 
@@ -47,9 +55,33 @@ watch(
       condValue.value = '';
       rawCondition.value = raw;
     }
+    condError.value = '';
   },
   { immediate: true },
 );
+
+/** 画布上所有边已解析出的条件变量（字典联想候选源之一） */
+const canvasVars = computed(() => {
+  if (!props.modeler) return [] as string[];
+  // 依赖 version 触发重算（面板值变化后候选同步）
+  void props.version;
+  const registry = props.modeler.get('elementRegistry') as {
+    filter(predicate: (el: PanelElement) => boolean): PanelElement[];
+  };
+  const vars = new Set<string>();
+  for (const el of registry.filter((e) => e.type === 'bpmn:SequenceFlow')) {
+    const m = /^([a-z]+)@@([^|]+)\|(.*)$/.exec(readCondition(el));
+    if (m?.[2] && VAR_PATTERN.test(m[2])) vars.add(m[2]);
+  }
+  return [...vars];
+});
+
+/** ElAutocomplete 联想回调：画布已用 ∪ 预置，按输入前缀/子串过滤 */
+function queryVarSuggestions(query: string, cb: (list: Array<{ value: string }>) => void): void {
+  const all = [...new Set([...canvasVars.value, ...PRESET_VARS])];
+  const q = query.trim().toLowerCase();
+  cb(all.filter((v) => !q || v.toLowerCase().includes(q)).map((value) => ({ value })));
+}
 
 function onNameChange(): void {
   if (!props.modeler) return;
@@ -64,20 +96,41 @@ function onSkipTypeChange(): void {
   emit('changed');
 }
 
-/** 条件三段齐全才写 DSL；全空则清除条件；部分填写暂不写（防半成品 DSL） */
+/**
+ * 条件三段校验与落 DSL（S105 强化）：
+ * 全空 → 清除条件；任一非空 → 三段齐全 + 变量名合法才写 DSL，否则给提示不落盘（防半成品）。
+ */
 function onConditionChange(): void {
   if (!props.modeler) return;
   const op = condOp.value;
   const v = condVar.value.trim();
   const val = condValue.value.trim();
-  if (op && v && val) {
-    writeCondition(props.modeler, props.element, `${op}@@${v}|${val}`);
-    rawCondition.value = '';
-    emit('changed');
-  } else if (!op && !v && !val) {
+  if (!op && !v && !val) {
+    condError.value = '';
     writeCondition(props.modeler, props.element, '');
     emit('changed');
+    return;
   }
+  if (!op) {
+    condError.value = '请选择比较符';
+    return;
+  }
+  if (!v) {
+    condError.value = '请填写条件变量（如 days）';
+    return;
+  }
+  if (!VAR_PATTERN.test(v)) {
+    condError.value = '变量名须为标识符（字母/下划线开头，仅含字母数字下划线）';
+    return;
+  }
+  if (!val) {
+    condError.value = '请填写比较值（如 3）';
+    return;
+  }
+  condError.value = '';
+  writeCondition(props.modeler, props.element, `${op}@@${v}|${val}`);
+  rawCondition.value = '';
+  emit('changed');
 }
 </script>
 
@@ -100,10 +153,18 @@ function onConditionChange(): void {
         <ElSelect v-model="condOp" placeholder="比较符" clearable style="width: 130px" @change="onConditionChange">
           <ElOption v-for="o in OPS" :key="o.value" :label="o.label" :value="o.value" />
         </ElSelect>
-        <ElInput v-model="condVar" placeholder="变量（如 days）" style="flex: 1" @change="onConditionChange" />
+        <ElAutocomplete
+          v-model="condVar"
+          :fetch-suggestions="queryVarSuggestions"
+          placeholder="变量（如 days）"
+          style="flex: 1"
+          @change="onConditionChange"
+          @select="onConditionChange"
+        />
         <ElInput v-model="condValue" placeholder="值（如 3）" style="flex: 1" @change="onConditionChange" />
       </div>
     </ElFormItem>
+    <ElAlert v-if="condError" type="error" :closable="false" show-icon :title="condError" />
     <ElAlert
       v-if="rawCondition"
       type="warning"

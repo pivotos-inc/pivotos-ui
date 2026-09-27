@@ -6,18 +6,16 @@ import { ElButton, ElDrawer, ElInput, ElMessage, ElMessageBox } from 'element-pl
 import Modeler from 'bpmn-js/lib/Modeler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
-import {
-  SAMPLE_VETO_XML,
-  bpmnXmlToDefJson,
-  defJsonToBpmnXml,
-  warmModdleDescriptor,
-} from '@/utils/workflow/bpmnDefJson';
+import { SAMPLE_VETO_XML, bpmnXmlToDefJson, defJsonToBpmnXml } from '@/utils/workflow/bpmnXml';
+import { warmModdleDescriptor } from '@/utils/workflow/bpmnIr';
 import { queryDefJson, saveDefJson } from '@/api/workflow/designer';
 import { pageDefinitions, publishDefinition } from '@/api/workflow/definition';
 import { warmPaletteModule } from './warmPalette';
+import { warmContextPadModule } from './warmContextPad';
 import type { PanelElement } from './modelerProps';
 import NodePanel from './properties/NodePanel.vue';
 import EdgePanel from './properties/EdgePanel.vue';
+import ProcessPanel from './properties/ProcessPanel.vue';
 
 // ---------- bpmn-js 画布 ----------
 const route = useRoute();
@@ -35,7 +33,7 @@ onMounted(async () => {
   modeler = new Modeler({
     container: canvasRef.value as HTMLElement,
     moddleExtensions: { warm: warmModdleDescriptor },
-    additionalModules: [warmPaletteModule],
+    additionalModules: [warmPaletteModule, warmContextPadModule],
   });
   modelerRef.value = modeler;
   modeler.on('selection.changed', (e: unknown) => {
@@ -224,7 +222,7 @@ async function handleExportXml(): Promise<void> {
           :element="selectedElement"
           :version="panelVersion"
         />
-        <div v-else class="designer-props-empty">点击画布中的节点或连线编辑属性</div>
+        <ProcessPanel v-else :modeler="modelerRef" :version="panelVersion" />
       </div>
     </div>
 

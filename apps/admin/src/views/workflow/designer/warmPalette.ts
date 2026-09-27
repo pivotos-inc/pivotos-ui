@@ -1,6 +1,7 @@
 /**
- * S104 palette 白名单裁剪：只保留映射模块支持的图元（开始/审批 userTask/结束/互斥网关）+ 画布工具。
- * 默认 palette 的 pool / data object / 通用 task 等图元，bpmnDefJson 映射层会显式报错
+ * palette 白名单裁剪（S104 初版 / S105 开放并行+包容网关）：
+ * 只保留映射模块支持的图元（开始/审批 userTask/结束/互斥/并行/包容网关）+ 画布工具。
+ * 默认 palette 的 pool / data object / 通用 task 等图元，映射层会显式报错
  * （S103 K 口径：不静默丢语义），直接从创建入口剔除，避免用户走到保存才报错。
  *
  * 勘误（S104 开工简报第二节）：warm-flow 无「抄送」节点类型，palette 不含抄送图元。
@@ -75,6 +76,8 @@ export default class WarmPaletteProvider {
       'create.start-event': createAction('bpmn:StartEvent', 'event', 'bpmn-icon-start-event-none', '开始'),
       'create.user-task': createAction('bpmn:UserTask', 'activity', 'bpmn-icon-user-task', '审批'),
       'create.exclusive-gateway': createAction('bpmn:ExclusiveGateway', 'gateway', 'bpmn-icon-gateway-xor', '互斥网关'),
+      'create.parallel-gateway': createAction('bpmn:ParallelGateway', 'gateway', 'bpmn-icon-gateway-parallel', '并行网关'),
+      'create.inclusive-gateway': createAction('bpmn:InclusiveGateway', 'gateway', 'bpmn-icon-gateway-or', '包容网关'),
       'create.end-event': createAction('bpmn:EndEvent', 'event', 'bpmn-icon-end-event-none', '结束'),
     };
   }
