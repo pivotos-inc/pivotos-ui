@@ -131,9 +131,24 @@ def main():
         f"驳回后应沿 REJECT 边回退到「提交申请」且状态=9 已退回，实际 {json.dumps({k: inst[0].get(k) for k in ('nodeName', 'flowStatus')}, ensure_ascii=False)}"
     log("PASS5", "驳回沿 REJECT 边回退「提交申请」，实例状态=9 已退回（边语义引擎侧成立）")
 
-    # Step 6 对照事实记录：退回任务不在平台待办口径内（flow_status='1' 过滤），退回再提交为平台既有缺口
-    assert pending_task(hdr, biz) is None, "退回任务不应出现在待办（flow_status=9），若出现说明平台已支持退回再提交"
-    log("PASS6", "退回任务不落入待办（平台既有口径，退回再提交链路缺口如实记录，出圈 S104）")
+    # Step 6 W1（S113）口径：待办口径已由 flow_status='1' 放宽为 IN ('1','9')，
+    # 退回任务「应」进入发起人待办并可重新提交——本断言随 W1 口径反转（S114 回归批同步）。
+    rej = pending_task(hdr, biz)
+    assert rej is not None and str(rej.get("flowStatus")) == "9", \
+        "W1 口径下退回任务应进入发起人待办（flow_status=9 可见）"
+    log("PASS6", f"退回任务进入发起人待办（flowStatus=9，taskId={rej.get('id')}）——W1 口径成立")
+
+    # Step 7 重新提交：resubmit 推进下一节点，实例 ID 与审批历史连续
+    r = requests.put(f"{BASE}/workflow/task/resubmit",
+                     json={"taskId": rej["id"], "message": "S104 E2E 重新提交"}, headers=hdr, timeout=30)
+    rb3 = r.json()
+    assert rb3.get("code") == 0, f"重新提交失败: {json.dumps(rb3, ensure_ascii=False)[:300]}"
+    inst2 = [i for i in requests.get(f"{BASE}/workflow/instance/page",
+                                     params={"pageNum": 1, "pageSize": 20}, headers=hdr, timeout=10)
+             .json()["data"]["list"] if i.get("businessId") == biz]
+    assert inst2 and str(inst2[0].get("flowStatus")) == "1", \
+        f"重新提交后实例应回到审批中（1），实际 {inst2[0].get('flowStatus') if inst2 else None}"
+    log("PASS7", f"重新提交成立：实例 9 → 1，节点={inst2[0].get('nodeName')}")
 
     print("\n===== S104 REJECT 驳回边实测 ALL-PASS =====")
 
