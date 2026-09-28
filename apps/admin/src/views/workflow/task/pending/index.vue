@@ -20,7 +20,7 @@ import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import { UserSelect } from '@pivotos/components';
 import type { UserSelectOption } from '@pivotos/components';
 import type { WorkflowHisTaskVO, WorkflowTaskQuery, WorkflowTaskVO, WorkflowUserOption } from '@pivotos/types';
-import { passTask, rejectTask, transferTask, deputeTask, addSignatureTask, reductionSignatureTask, taskApprovers, taskHistory } from '@/api/workflow/task';
+import { passTask, rejectTask, resubmitTask, transferTask, deputeTask, addSignatureTask, reductionSignatureTask, taskApprovers, taskHistory } from '@/api/workflow/task';
 import { pageUsers } from '@/api/system/user';
 import { useTablePage } from '@/hooks';
 import ApprovalAdviceDrawer from './ApprovalAdviceDrawer.vue';
@@ -55,7 +55,8 @@ const approveForm = reactive<{ taskId: string; action: string; message: string; 
 });
 
 const approveTitle = computed(() => {
-  const map: Record<string, string> = { pass: '审批通过', reject: '驳回', transfer: '转办', depute: '委派' };
+  // resubmit（W1/S113）：退回任务重新提交，复用同一弹窗收意见
+  const map: Record<string, string> = { pass: '审批通过', reject: '驳回', transfer: '转办', depute: '委派', resubmit: '重新提交' };
   return map[approveForm.action] ?? '审批操作';
 });
 
@@ -80,6 +81,7 @@ async function submitApprove(): Promise<void> {
     switch (approveForm.action) {
       case 'pass': await passTask(cmd); break;
       case 'reject': await rejectTask(cmd); break;
+      case 'resubmit': await resubmitTask(cmd); break;
       case 'transfer': await transferTask(cmd); break;
       case 'depute': await deputeTask(cmd); break;
     }
@@ -268,6 +270,17 @@ async function openHistory(row: WorkflowTaskVO): Promise<void> {
             </ElButton>
             <ElButton v-hasPermi="'workflow:task:add-signature'" link type="warning" @click="openReduction(row as WorkflowTaskVO)">
               减签
+            </ElButton>
+          </template>
+          <!-- W1（S113）：退回态任务由发起人重新提交，不提供通过/驳回/加签/减签等审批动作 -->
+          <template v-if="(row as WorkflowTaskVO).flowStatus === '9'">
+            <ElButton
+              v-hasPermi="'workflow:task:approve'"
+              link
+              type="warning"
+              @click="openApprove(row as WorkflowTaskVO, 'resubmit')"
+            >
+              重新提交
             </ElButton>
           </template>
           <ElButton link type="primary" @click="openHistory(row as WorkflowTaskVO)">
