@@ -52,11 +52,13 @@ const TREE_EXAMPLES = [
   '部门层级结构，含部门编码、部门名称、排序号、上级部门',
 ];
 
-const TASK_TYPE_MAP: Record<number, { label: string; type: 'primary' | 'success' | 'warning' | 'info' }> = {
+const TASK_TYPE_MAP: Record<number, { label: string; type: 'primary' | 'success' | 'warning' | 'info' | 'danger' }> = {
   1: { label: '单表CRUD', type: 'primary' },
   2: { label: 'Plugin骨架', type: 'success' },
   3: { label: '主子表', type: 'warning' },
   4: { label: '树表', type: 'info' },
+  /** 修改型（A4 / S110~S112）：产物为 diff，走独立评审页 */
+  5: { label: '修改型', type: 'danger' },
 };
 
 const STATUS_MAP: Record<number, { label: string; type: 'info' | 'warning' | 'success' | 'danger' }> = {
@@ -131,6 +133,11 @@ async function handleApply() {
 
 function goGenerator() {
   router.push('/tool/generator');
+}
+
+/** 修改型会话（taskType=5）走独立评审页：要看 diff 与门禁结果，列表页的生成文件预览不适用 */
+function goReview(id: string) {
+  router.push(`/ai/coding/review?id=${id}`);
 }
 
 /* ================= 历史会话 ================= */
@@ -272,9 +279,18 @@ const columns: YTableColumn<CodingSessionVO>[] = [
             {{ STATUS_MAP[(row as CodingSessionVO).status ?? 0].label }}
           </ElTag>
         </template>
-        <ElTableColumn label="操作" width="100" align="center" fixed="right">
+        <ElTableColumn label="操作" width="150" align="center" fixed="right">
           <template #default="{ row }">
             <ElButton v-hasPermi="'ai:coding:list'" link type="primary" @click="loadSession((row as CodingSessionVO).id)">查看</ElButton>
+            <ElButton
+              v-if="(row as CodingSessionVO).taskType === 5"
+              v-hasPermi="'ai:coding:list'"
+              link
+              type="warning"
+              @click="goReview((row as CodingSessionVO).id)"
+            >
+              查看评审
+            </ElButton>
           </template>
         </ElTableColumn>
       </YTable>
