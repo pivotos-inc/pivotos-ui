@@ -1,6 +1,6 @@
 {
   "name": "pivotos-ui",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.0",
