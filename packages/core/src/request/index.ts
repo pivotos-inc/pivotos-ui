@@ -43,7 +43,11 @@ const pending = new Map<string, true>();
 
 function fingerprint(config: AxiosRequestConfig): string {
   const { method, url, params, data } = config;
-  return [method, url, JSON.stringify(params ?? {}), JSON.stringify(data ?? {})].join('&');
+  // 口径（S103 K6）：请求拦截器里 config.data 是序列化前的对象，响应侧 config.data
+  // 已被 transformRequest 序列化成字符串——两侧必须统一归一为字符串再比对，
+  // 否则在途指纹永远删不掉，相同载荷的二次提交被误拦「请勿重复提交」。
+  const dataStr = typeof data === 'string' ? data : JSON.stringify(data ?? {});
+  return [method, url, JSON.stringify(params ?? {}), dataStr].join('&');
 }
 
 export function createRequest(options: CreateRequestOptions): AxiosInstance {

@@ -514,3 +514,91 @@ export interface JobHandlerVO {
   handler: string;
   displayName: string;
 }
+
+/* ================= 租户套餐 ================= */
+
+/** 租户套餐视图对象（对齐 TenantPackageVO） */
+export interface TenantPackageVO extends BaseVO {
+  packageName: string;
+  /** 菜单范围（sys_menu.id 集合；null/undefined=不限制） */
+  menuIds?: string[] | null;
+  status?: number;
+  remark?: string;
+  /** 绑定租户数 */
+  tenantCount?: number;
+}
+
+/** 租户套餐查询（对齐 TenantPackageQuery，不分页直接列表） */
+export interface TenantPackageQuery {
+  packageName?: string;
+  status?: Emptyable<number>;
+}
+
+/** 租户套餐新增/修改请求（对齐 TenantPackageSaveRequest） */
+export interface TenantPackageSaveRequest {
+  id?: string;
+  packageName: string;
+  /** 菜单范围（空数组/undefined=不限制） */
+  menuIds?: string[];
+  status?: number;
+  remark?: string;
+}
+
+/* ================= 租户 ================= */
+
+/** 租户视图对象（对齐 TenantVO） */
+export interface TenantVO extends BaseVO {
+  tenantCode: string;
+  tenantName: string;
+  packageId?: string;
+  packageName?: string;
+  /** 账号数上限（0=不限） */
+  accountLimit?: number;
+  /** 已建账号数 */
+  accountCount?: number;
+  /** 过期时间（null=永不过期） */
+  expireTime?: string;
+  status?: number;
+  remark?: string;
+}
+
+/** 租户分页查询（对齐 TenantQuery） */
+export interface TenantQuery extends PageQuery {
+  tenantCode?: string;
+  tenantName?: string;
+  packageId?: string;
+  status?: Emptyable<number>;
+}
+
+/** 租户新增/修改请求（对齐 TenantSaveRequest） */
+export interface TenantSaveRequest {
+  id?: string;
+  tenantCode: string;
+  tenantName: string;
+  packageId?: string;
+  accountLimit?: number;
+  expireTime?: string;
+  status?: number;
+  remark?: string;
+}
+
+/** 租户初始化向导请求（对齐 TenantInitRequest） */
+export interface TenantInitRequest {
+  tenantCode: string;
+  tenantName: string;
+  packageId: string;
+  accountLimit?: number;
+  expireTime?: string;
+  remark?: string;
+  adminUsername: string;
+  adminNickname: string;
+  /** 留空用系统初始密码配置 */
+  adminPassword?: string;
+  adminRoleIds?: string[];
+}
+
+/** 租户初始化向导结果（对齐 TenantInitVO） */
+export interface TenantInitVO {
+  tenantId: string;
+  adminUserId: string;
+}

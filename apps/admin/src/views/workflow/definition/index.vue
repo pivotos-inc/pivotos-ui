@@ -3,6 +3,7 @@ defineOptions({ name: 'WorkflowDefinition' });
 import { ref } from 'vue';
 import { ElButton, ElDialog, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import { useRouter } from 'vue-router';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import type { FlowDefinitionQuery, FlowDefinitionVO } from '@pivotos/types';
@@ -98,6 +99,14 @@ function onDesignerClose(): void {
   load();
 }
 
+// ---------- 新版设计器（S104，bpmn-js 自绘页面，与旧 iframe 入口并存灰度） ----------
+const router = useRouter();
+
+/** 跳转新版设计器编辑既有定义（query-def → defJsonToBpmnXml 回显链路） */
+function openNewDesigner(row: FlowDefinitionVO): void {
+  void router.push({ path: '/workflow/designer', query: { id: row.id } });
+}
+
 // ---------- 操作 ----------
 
 async function handlePublish(row: FlowDefinitionVO): Promise<void> {
@@ -153,7 +162,7 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
           {{ ACTIVITY_TAG[(row as FlowDefinitionVO).activityStatus]?.label ?? (row as FlowDefinitionVO).activityStatus }}
         </ElTag>
       </template>
-      <ElTableColumn label="操作" width="240" align="center" fixed="right">
+      <ElTableColumn label="操作" width="300" align="center" fixed="right">
         <template #default="{ row }">
           <ElButton
             v-hasPermi="'workflow:definition:design'"
@@ -162,6 +171,14 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
             @click="openDesigner(row as FlowDefinitionVO)"
           >
             设计
+          </ElButton>
+          <ElButton
+            v-hasPermi="'workflow:definition:design'"
+            link
+            type="primary"
+            @click="openNewDesigner(row as FlowDefinitionVO)"
+          >
+            新版设计
           </ElButton>
           <ElButton
             v-if="(row as FlowDefinitionVO).isPublish !== 1"

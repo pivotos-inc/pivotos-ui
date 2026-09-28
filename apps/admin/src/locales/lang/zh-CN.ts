@@ -18,8 +18,16 @@ export default {
     logout: '退出登录',
     logoutConfirm: '确定退出当前登录吗？',
     tip: '提示',
-    closeOthers: '关闭其他',
+    refresh: '刷新页面',
+    closeCurrent: '关闭当前页',
+    closeOthers: '关闭其它页',
+    closeLeft: '关闭左侧页',
+    closeRight: '关闭右侧页',
     closeAll: '关闭全部',
+    moveToFirst: '移到最左侧',
+    moveToLast: '移到最右侧',
+    affix: '固定标签页',
+    unaffix: '取消固定',
   },
   // 菜单多语言：键 = 后端菜单名（sys_menu.menu_name）
   menu: {

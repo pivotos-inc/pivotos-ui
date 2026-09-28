@@ -15,8 +15,9 @@ const userStore = useUserStore();
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const form = reactive({
+  // 预填测试账号，方便联调直登（正式部署前可清空）
   username: 'admin',
-  password: '',
+  password: 'admin123',
 });
 
 const rules: Record<string, FormItemRule[]> = {

@@ -1,6 +1,18 @@
-import { reactive, ref, type Ref } from 'vue';
+import { getCurrentInstance, onActivated, reactive, ref, type Ref } from 'vue';
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import type { PageQuery, PageResult } from '@pivotos/types';
+
+/**
+ * 全局"切 tab 自动刷新"开关（系统参数 sys.tagsview.refreshOnActivate 下发）。
+ * 默认 true：老后端无此配置 / 接口失败时保持既有行为。
+ * 页面级选项 refreshOnActivate 优先于全局开关。
+ */
+let globalRefreshOnActivate = true;
+
+/** 由宿主在会话装配时调用（admin 端：路由守卫读取系统参数后） */
+export function setGlobalRefreshOnActivate(enabled: boolean): void {
+  globalRefreshOnActivate = enabled;
+}
 
 export interface TablePageOptions<T, Q extends PageQuery = PageQuery> {
   /** 列表接口地址，如 /system/user/page */
@@ -9,6 +21,12 @@ export interface TablePageOptions<T, Q extends PageQuery = PageQuery> {
   query?: Q;
   /** 进入页面立即加载，默认 true */
   immediate?: boolean;
+  /**
+   * 标签页重新激活（keep-alive 唤醒）时自动刷新数据。
+   * 不传时跟随全局开关（系统参数 sys.tagsview.refreshOnActivate），全局默认 true。
+   * 只重新拉取当前页数据，分页、查询条件等页面状态全部保留。
+   */
+  refreshOnActivate?: boolean;
   /** 响应数据后处理 */
   transform?: (rows: T[]) => T[];
 }
@@ -66,6 +84,20 @@ export function createUseTablePage(request: AxiosInstance) {
     }
 
     if (immediate) void load();
+
+    // 切换回标签页时刷新数据（分页 / 查询条件由 keep-alive 保留，这里只重拉当前页）
+    // 优先级：页面选项 refreshOnActivate > 全局开关（系统参数）
+    if (getCurrentInstance() && (options.refreshOnActivate ?? globalRefreshOnActivate)) {
+      // 首次激活紧接 immediate 首载，跳过避免重复请求
+      let skipFirstActivation = immediate;
+      onActivated(() => {
+        if (skipFirstActivation) {
+          skipFirstActivation = false;
+          return;
+        }
+        void load();
+      });
+    }
 
     return { loading, rows, total, params, load, search, reset };
   };
