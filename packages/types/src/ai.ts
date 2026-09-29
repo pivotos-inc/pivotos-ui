@@ -689,3 +689,63 @@ export interface AiToolInvokeQuery extends PageQuery {
   /** 调用人 ID */
   userId?: string;
 }
+
+// ============================================================
+// A5-1 工具多步编排（S116）
+// ============================================================
+
+/** 编排计划单步（对齐 AiToolPlanVO.PlanStepVO） */
+export interface AiToolPlanStepVO {
+  /** 步骤序号（从 1 起） */
+  no: number;
+  /** 工具名 */
+  tool: string;
+  /** 入参 JSON 原文（含引用占位符） */
+  args?: string;
+  /** 规划理由 */
+  reason?: string;
+  /** 是否写操作（写操作需二次确认） */
+  write?: boolean;
+  /** 执行输出（未执行为空） */
+  output?: string;
+}
+
+/** 编排计划视图（对齐 AiToolPlanVO） */
+export interface AiToolPlanVO {
+  id: string;
+  /** 用户原始意图 */
+  intent?: string;
+  /** 计划目标 */
+  goal?: string;
+  /** 步骤数 */
+  stepCount?: number;
+  /** 状态：draft 待确认 / success 已完成 / need_confirm 等待写操作确认 / failed 中断 */
+  status?: string;
+  /** 已成功执行步骤数 */
+  executedSteps?: number;
+  /** 被写操作确认闸拦下的步骤序号（0 未拦停） */
+  blockedStep?: number;
+  /** 结果摘要 / 失败原因 */
+  resultSummary?: string;
+  /** 总耗时（毫秒） */
+  costMs?: number | string;
+  /** 能力缺口说明（计划为空时） */
+  unmapped?: string;
+  /** 计划校验结论（非空 = 不允许执行） */
+  errors?: string[];
+  steps?: AiToolPlanStepVO[];
+  createTime?: string;
+}
+
+/** 编排记录分页查询（对齐 AiToolPlanQuery） */
+export interface AiToolPlanQuery extends PageQuery {
+  intent?: string;
+  status?: Emptyable<string>;
+}
+
+/** 编排执行入参（对齐 AiOrchestratorRunRequest） */
+export interface AiOrchestratorRunRequest {
+  intent: string;
+  /** 是否已获得用户对写操作的二次确认（false 时停在写步骤前） */
+  confirmed?: boolean;
+}
