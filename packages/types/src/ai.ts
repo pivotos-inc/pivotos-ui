@@ -154,6 +154,97 @@ export interface AiApiKeySaveBody {
 
 /* ================= AI Coding ================= */
 
+/** 定位候选（A4-1 / S110 粗筛阶段产物） */
+export interface CodingLocateCandidateVO {
+  /** 仓库根相对路径 */
+  path?: string;
+  /** 所属模块 */
+  module?: string;
+  /** 分层标签（分层约定感知） */
+  layer?: string;
+  /** 主类型名 */
+  typeName?: string;
+  /** 候选来源：llm（粗筛）/ keyword（确定性召回） */
+  source?: string;
+  /** 置信度 0~1 */
+  confidence?: number;
+  /** 入选理由 */
+  reason?: string;
+}
+
+/** 精定位结果（单候选，含确定性仲裁分项） */
+export interface CodingLocatePreciseVO {
+  /** 仓库根相对路径 */
+  path?: string;
+  layer?: string;
+  /** 目标方法/区块名 */
+  method?: string;
+  /** 建议改动起始行（1 基） */
+  startLine?: number;
+  /** 建议改动结束行（1 基） */
+  endLine?: number;
+  /** LLM 判定该候选是否确为改动落点 */
+  applicable?: boolean;
+  /** LLM 精定位自评置信度 0~1 */
+  confidence?: number;
+  reason?: string;
+  /** 确定性信号：符号表/路径关键词命中率 0~1 */
+  symbolHit?: number;
+  /** 确定性信号：分层因子归一值 0~1 */
+  layerFactor?: number;
+  /** 仲裁综合分（越大越优；0.5×自评 + 0.3×符号命中 + 0.2×分层因子） */
+  score?: number;
+}
+
+/** 两段定位结果（A4-1 / S110） */
+export interface CodingLocateVO {
+  /** 目标仓库逻辑名：fw / ui */
+  repo?: string;
+  intent?: string;
+  model?: string;
+  /** 意图解析结果：domain / change_type / keywords */
+  parse?: Record<string, unknown>;
+  candidates?: CodingLocateCandidateVO[];
+  precise?: CodingLocatePreciseVO[];
+  /** 仲裁选中的落点 */
+  chosen?: CodingLocatePreciseVO;
+  /** 是否降级选中（全部候选被判不适用时退回最高置信度者） */
+  fallback?: boolean;
+  /** 索引文件数 */
+  indexSize?: number;
+  costMs?: number;
+}
+
+/** 结构化 edit 块（A4-2 / S111） */
+export interface CodingEditBlockVO {
+  /** 待替换原文片段（逐字，含缩进） */
+  search?: string;
+  /** 替换后的内容（空串表示删除） */
+  replace?: string;
+  /** 第几次命中（1-based）；<=0 表示要求唯一命中 */
+  occurrence?: number;
+  /** true 表示追加到文件末尾（不校验 search） */
+  append?: boolean;
+  /** LLM 给出的改动理由（评审辅助材料，不作裁决） */
+  reason?: string;
+}
+
+/** 结构化 edit 指令（diff 由后端确定性渲染，此处不含 diff 文本） */
+export interface CodingEditVO {
+  path?: string;
+  blocks?: CodingEditBlockVO[];
+}
+
+/** 自动门禁结果（Prepare 阶段为可应用性校验；编译/typecheck 在应用时执行） */
+export interface CodingGateVO {
+  /** git apply --check 是否通过 */
+  applyCheck?: boolean;
+  /** 是否靠 --recount 兜底才通过 */
+  recountUsed?: boolean;
+  /** 失败原因 / 原始报错 */
+  message?: string;
+}
+
 /** AI Coding 会话视图对象（对齐 CodingSessionVO） */
 export interface CodingSessionVO {
   id: string;
@@ -169,8 +260,16 @@ export interface CodingSessionVO {
   businessName?: string;
   /** 状态：0=解析中 1=待评审 2=已应用 3=失败 */
   status?: number;
-  /** 任务类型：1=单表CRUD 2=Plugin骨架 */
+  /** 任务类型：1=单表CRUD 2=Plugin骨架 3=主子表 4=树表 5=修改型（A4） */
   taskType?: number;
+  /** 确定性渲染的 unified diff（修改型，A4-2） */
+  diff?: string;
+  /** 定位结论快照（A4-1） */
+  locate?: CodingLocateVO;
+  /** 结构化 edit 指令（A4-2） */
+  edit?: CodingEditVO;
+  /** 门禁结果（A4-2：apply-check；编译/typecheck 在应用时执行） */
+  gate?: CodingGateVO;
   /** 任务类型特定参数（骨架：pluginName/errorCodeBase/tablePrefix/lintReport 等） */
   extra?: Record<string, unknown>;
   /** 生成的文件列表（文件路径 → 文件内容），列表视图不下发 */

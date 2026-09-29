@@ -1,7 +1,6 @@
 <script setup lang="ts">
 defineOptions({ name: 'WorkflowDefinition' });
-import { ref } from 'vue';
-import { ElButton, ElDialog, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
+import { ElButton, ElMessage, ElMessageBox, ElTableColumn, ElTag } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { YSearchForm, YTable } from '@pivotos/ui';
@@ -12,7 +11,6 @@ import {
   publishDefinition,
   toggleActivity,
 } from '@/api/workflow/definition';
-import { useUserStore } from '@/stores/user';
 import { useTablePage } from '@/hooks';
 
 // ---------- 列表 ----------
@@ -62,49 +60,21 @@ const columns: YTableColumn<FlowDefinitionVO>[] = [
   { prop: 'updateTime', label: '更新时间', width: 170 },
 ];
 
-// ---------- 设计器（iframe 内嵌） ----------
-const designerVisible = ref(false);
-const designerUrl = ref('');
-const designerTitle = ref('流程设计器');
-
-/** 同步 token 到 WarmFlow 设计器期望的 localStorage key */
-function syncWarmFlowToken(): void {
-  const { token } = useUserStore();
-  if (token) {
-    localStorage.setItem('Authorization', token);
-  }
-}
-
-/** 打开 WarmFlow 内置设计器（编辑已有定义） */
-function openDesigner(row: FlowDefinitionVO): void {
-  syncWarmFlowToken();
-  designerTitle.value = `设计流程 - ${row.flowName}`;
-  // 注意：query 参数必须在 # 之前，WarmFlow SPA 用 location.search 解析
-  designerUrl.value = `/api/warm-flow-ui/index.html?id=${row.id}#/design`;
-  designerVisible.value = true;
-}
-
-/** 打开 WarmFlow 新建设计器 */
-function openDesignerCreate(): void {
-  syncWarmFlowToken();
-  designerTitle.value = '新建流程';
-  designerUrl.value = '/api/warm-flow-ui/index.html#/design';
-  designerVisible.value = true;
-}
-
-function onDesignerClose(): void {
-  designerVisible.value = false;
-  designerUrl.value = '';
-  // 关闭设计器后刷新列表（可能保存了新定义）
-  load();
-}
-
-// ---------- 新版设计器（S104，bpmn-js 自绘页面，与旧 iframe 入口并存灰度） ----------
+// ---------- 新版设计器（S104，bpmn-js 自绘页面；S113 D1 起为唯一设计器入口） ----------
 const router = useRouter();
 
 /** 跳转新版设计器编辑既有定义（query-def → defJsonToBpmnXml 回显链路） */
 function openNewDesigner(row: FlowDefinitionVO): void {
   void router.push({ path: '/workflow/designer', query: { id: row.id } });
+}
+
+/**
+ * 跳转新版设计器新建定义（不带 id → 载入示例画布，改 process id 后保存）。
+ * S113 D1：旧内置 jar 设计器（/warm-flow-ui/）入口退役，新建入口一并切到新版设计器；
+ * 后端由 pivotos.workflow.legacy-designer.enabled 守卫拦截旧入口（默认关闭），jar 依赖保留不剔除。
+ */
+function openNewDesignerCreate(): void {
+  void router.push({ path: '/workflow/designer' });
 }
 
 // ---------- 操作 ----------
@@ -135,7 +105,7 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
 <template>
   <div class="page-card">
     <div class="definition-page__bar">
-      <ElButton v-hasPermi="'workflow:definition:design'" type="primary" :icon="Plus" @click="openDesignerCreate">
+      <ElButton v-hasPermi="'workflow:definition:design'" type="primary" :icon="Plus" @click="openNewDesignerCreate">
         新建流程
       </ElButton>
     </div>
@@ -164,14 +134,6 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
       </template>
       <ElTableColumn label="操作" width="300" align="center" fixed="right">
         <template #default="{ row }">
-          <ElButton
-            v-hasPermi="'workflow:definition:design'"
-            link
-            type="primary"
-            @click="openDesigner(row as FlowDefinitionVO)"
-          >
-            设计
-          </ElButton>
           <ElButton
             v-hasPermi="'workflow:definition:design'"
             link
@@ -210,21 +172,6 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
     </YTable>
   </div>
 
-  <!-- WarmFlow 设计器 iframe 弹窗 -->
-  <ElDialog
-    v-model="designerVisible"
-    :title="designerTitle"
-    fullscreen
-    destroy-on-close
-    @close="onDesignerClose"
-  >
-    <iframe
-      v-if="designerUrl"
-      :src="designerUrl"
-      class="designer-iframe"
-      frameborder="0"
-    />
-  </ElDialog>
 </template>
 
 <style scoped>
@@ -234,9 +181,4 @@ async function handleDelete(row: FlowDefinitionVO): Promise<void> {
   margin-bottom: 12px;
 }
 
-.designer-iframe {
-  width: 100%;
-  height: calc(100vh - 120px);
-  border: none;
-}
 </style>

@@ -132,9 +132,17 @@ def main():
     assert inst and inst.get("nodeName") == "提交申请" and str(inst.get("flowStatus")) == "9", \
         f"第 2 签驳回后应沿 REJECT 边回退「提交申请」flowStatus=9，实际 {json.dumps({k: (inst or {}).get(k) for k in ('nodeName', 'flowStatus')}, ensure_ascii=False)}"
     assert pending_task(hdr_003, biz_b) is None, "驳回推进后 vote003 待办应被清理"
-    assert pending_task(hdr_admin, biz_b) is None, \
-        "退回任务不落入待办（flow_status=9 平台既有口径，S104 K1）"
-    log("PASS6", "驳回率 66.7%>50% 沿 REJECT 边回退「提交申请」（flowStatus=9），剩余待办清理")
+    # W1（S113）口径：退回任务「应」回到发起人（admin）待办并可重新提交——
+    # 断言随 W1 口径反转（S114 回归批同步），不再是 S104 K1 时代的「不落入待办」。
+    rej = pending_task(hdr_admin, biz_b)
+    assert rej is not None and str(rej.get("flowStatus")) == "9", \
+        "W1 口径下退回任务应进入发起人待办（flow_status=9 可见）"
+    r = requests.put(f"{BASE}/workflow/task/resubmit",
+                     json={"taskId": rej["id"], "message": "S105 E2E 重新提交"}, headers=hdr_admin, timeout=30)
+    rb = r.json()
+    assert rb.get("code") == 0, f"票签退回后重新提交失败: {json.dumps(rb, ensure_ascii=False)[:300]}"
+    log("PASS6", f"驳回率 66.7%>50% 沿 REJECT 边回退「提交申请」（flowStatus=9），"
+                 f"退回任务进发起人待办且 resubmit 成功（W1 口径）")
 
     print("\n===== S105 票签（nodeRatio=50）端到端实测 ALL-PASS =====")
 
