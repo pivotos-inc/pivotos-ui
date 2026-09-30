@@ -4,12 +4,21 @@ import type {
   ApprovalAdviceStreamDone,
   ApprovalAdviceStreamMeta,
   ApprovalAdviceVO,
+  AutoApprovalResultVO,
 } from '@pivotos/types';
 import { request } from '../request';
 
 /** 最近一条审批建议回显（仅本人记录；无记录返回 null） */
 export function latestApprovalAdvice(taskId: string): Promise<ApprovalAdviceVO | null> {
   return request.get<unknown, ApprovalAdviceVO | null>(`/ai/approval/advice/${taskId}/latest`);
+}
+
+/**
+ * 受控自动预审（A4E / S117）：确定性低风险规则全中才自动通过，默认关闭。
+ * 归属闸在后端（非审批人直接被拒），前端只负责在「够格」时发起。
+ */
+export function autoPassApproval(taskId: string): Promise<AutoApprovalResultVO> {
+  return request.post<ApprovalAdviceBody, AutoApprovalResultVO>('/ai/approval/auto-pass', { taskId });
 }
 
 /** SSE 流式审批建议回调（事件序列 meta → delta* → done，异常 error） */

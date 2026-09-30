@@ -77,6 +77,8 @@ export interface KbSimpleOptionVO {
   name: string;
   /** 查询改写开关（S68） */
   queryRewrite?: boolean;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117） */
+  kbType?: string;
 }
 
 /* ================= AI 供应商配置 ================= */
@@ -292,6 +294,8 @@ export type KbVectorStoreType = 'simple' | 'milvus' | 'pgvector' | 'qdrant';
 export interface KnowledgeBaseVO {
   id: string;
   name: string;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117 制度类标记） */
+  kbType?: string;
   description?: string;
   vectorStoreType: KbVectorStoreType;
   embeddingModel?: string;
@@ -312,6 +316,8 @@ export interface KnowledgeBaseVO {
 export interface KnowledgeBaseSaveBody {
   id?: string;
   name: string;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117） */
+  kbType?: string;
   description?: string;
   vectorStoreType: KbVectorStoreType;
   embeddingModel?: string;
@@ -597,6 +603,25 @@ export interface ApprovalAdviceVO {
   /** 检索所用知识库 ID（无制度依据为空） */
   kbId?: string;
   createTime?: string;
+  /** 是否受控自动通过（A4E / S117） */
+  autoPassed?: boolean;
+  /** 自动预审判定原因（未启用 / 未命中规则 / 命中明细） */
+  autoDecisionReason?: string;
+  /** 是否具备受控自动通过资格（不等于已通过；供前端决定是否发起自动预审） */
+  autoEligible?: boolean;
+}
+
+/** 受控自动预审结果（A4E / S117，对齐 AutoApprovalResultVO） */
+export interface AutoApprovalResultVO {
+  taskId: string;
+  /** 是否已自动通过 */
+  autoPassed: boolean;
+  /** 判定原因（未通过时说明哪条规则不满足） */
+  reason?: string;
+  /** 规则命中明细 */
+  ruleHits?: string[];
+  /** 依据的建议记录 ID */
+  adviceId?: string;
 }
 
 /** 审批建议生成请求（对齐 ApprovalAdviceRequest；kbId 空 = 后端默认库策略） */
@@ -622,6 +647,8 @@ export interface ApprovalAdviceStreamDone {
   references?: ApprovalReferenceVO[];
   /** 免责声明：AI 建议仅供参考，审批责任仍归审批人 */
   disclaimer?: string;
+  /** 是否具备受控自动通过资格（A4E / S117；够格才发起自动预审，不等于已通过） */
+  autoEligible?: boolean;
 }
 
 /* ================= AI 工具管理（S98 A2 注册 / S99 管理页） ================= */
@@ -708,6 +735,14 @@ export interface AiToolPlanStepVO {
   write?: boolean;
   /** 执行输出（未执行为空） */
   output?: string;
+  /** 实际尝试次数（A5-2；未执行为 0，写步骤恒 ≤ 1） */
+  attemptCount?: number;
+  /** 步骤终态：success / failed / need_confirm / skipped（skipped = 熔断后未发起调用） */
+  stepStatus?: string;
+  /** 本步耗时（毫秒，含重试） */
+  stepCostMs?: number | string;
+  /** 失败原因（终态失败信号原文） */
+  error?: string;
 }
 
 /** 编排计划视图（对齐 AiToolPlanVO） */
@@ -729,6 +764,12 @@ export interface AiToolPlanVO {
   resultSummary?: string;
   /** 总耗时（毫秒） */
   costMs?: number | string;
+  /** 本次执行累计重试次数（A5-2；写步骤恒为 0） */
+  retryCount?: number;
+  /** 是否触发熔断（A5-2：重试预算耗尽，后续步骤未再发起调用） */
+  circuitBroken?: boolean;
+  /** 失败原因（终态失败信号原文） */
+  failReason?: string;
   /** 能力缺口说明（计划为空时） */
   unmapped?: string;
   /** 计划校验结论（非空 = 不允许执行） */

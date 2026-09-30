@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'AiOrchestrator' });
 import { computed, onMounted, ref } from 'vue';
-import { ElButton, ElInput, ElMessage, ElMessageBox, ElTag } from 'element-plus';
+import { ElAlert, ElButton, ElInput, ElMessage, ElMessageBox, ElTag } from 'element-plus';
 import { YSearchForm, YTable } from '@pivotos/ui';
 import type { YFormSchema, YTableColumn } from '@pivotos/ui';
 import type { AiToolPlanQuery, AiToolPlanStepVO, AiToolPlanVO } from '@pivotos/types';
@@ -17,6 +17,22 @@ const STATUS_META: Record<string, { text: string; type: 'success' | 'danger' | '
   need_confirm: { text: '待确认写操作', type: 'warning' },
   failed: { text: '中断', type: 'danger' },
 };
+
+/**
+ * 步骤终态 → 文案与颜色（A5-2 对齐 ai_tool_plan_step.status）。
+ * skipped 必须与 failed 分开：前者是「熔断后压根没调用」，后者是「调用过但失败」，
+ * 混在一起用户会以为工具坏了，实际是保护生效。
+ */
+const STEP_STATUS_META: Record<string, { text: string; type: 'success' | 'danger' | 'warning' | 'info' }> = {
+  success: { text: '成功', type: 'success' },
+  failed: { text: '失败', type: 'danger' },
+  need_confirm: { text: '停在写步骤前待确认', type: 'warning' },
+  skipped: { text: '已跳过（熔断，未发起调用）', type: 'info' },
+};
+
+function stepStatusMeta(status?: string): { text: string; type: 'success' | 'danger' | 'warning' | 'info' } {
+  return STEP_STATUS_META[status ?? ''] ?? { text: '未执行', type: 'info' };
+}
 
 // ---------- 编排区 ----------
 const intent = ref('');
@@ -213,6 +229,19 @@ onMounted(async () => {
         </ElTag>
       </div>
 
+      <!-- A5-2 熔断与重试：必须让用户分清「跑了但失败」和「压根没跑」 -->
+      <ElAlert
+        v-if="current.circuitBroken"
+        class="plan-circuit"
+        title="执行已熔断：重试预算耗尽，后续步骤未再发起调用"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <div v-if="(current.retryCount ?? 0) > 0" class="plan-retry">
+        本次执行共重试 {{ current.retryCount }} 次（写步骤不参与重试）
+      </div>
+
       <div v-if="(current.errors ?? []).length > 0" class="plan-errors">
         <div v-for="(e, i) in current.errors" :key="i">· {{ e }}</div>
       </div>
@@ -231,6 +260,15 @@ onMounted(async () => {
             <span class="step-reason">{{ step.reason }}</span>
           </div>
           <div class="step-args">入参：{{ argsOf(step) }}</div>
+          <!-- A5-2 可观测：每一步的终态 / 尝试次数 / 耗时 / 失败原因 -->
+          <div class="step-trace">
+            <ElTag size="small" :type="stepStatusMeta(step.stepStatus).type">
+              {{ stepStatusMeta(step.stepStatus).text }}
+            </ElTag>
+            <span v-if="step.attemptCount" class="trace-item">尝试 {{ step.attemptCount }} 次</span>
+            <span v-if="step.stepCostMs" class="trace-item">耗时 {{ step.stepCostMs }} ms</span>
+            <span v-if="step.error" class="trace-error">失败原因：{{ brief(step.error, 160) }}</span>
+          </div>
           <div v-if="step.output" class="step-output">输出：{{ brief(step.output) }}</div>
           <div v-else-if="step.no === current.blockedStep" class="step-blocked">停在写步骤前，等待确认</div>
         </li>
@@ -332,6 +370,32 @@ onMounted(async () => {
 
 .step-blocked {
   color: #e6a23c;
+}
+
+.step-trace {
+  margin-bottom: 2px;
+  color: var(--el-text-color-regular, #606266);
+  font-size: 12px;
+}
+
+.trace-item {
+  margin-left: 8px;
+}
+
+.trace-error {
+  margin-left: 8px;
+  color: #f56c6c;
+  word-break: break-all;
+}
+
+.plan-circuit {
+  margin-bottom: 8px;
+}
+
+.plan-retry {
+  margin-bottom: 8px;
+  color: var(--el-text-color-regular, #606266);
+  font-size: 12px;
 }
 
 .plan-summary {
