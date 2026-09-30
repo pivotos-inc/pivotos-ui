@@ -13,9 +13,10 @@ import {
 import type {
   ApprovalAdviceVO,
   ApprovalReferenceVO,
+  AutoApprovalResultVO,
   KbSimpleOptionVO,
 } from '@pivotos/types';
-import { latestApprovalAdvice, streamApprovalAdvice } from '@/api/ai/approval';
+import { autoPassApproval, latestApprovalAdvice, streamApprovalAdvice } from '@/api/ai/approval';
 import { listKbOptions } from '@/api/ai/chat';
 
 /** AI 审批建议抽屉（S101 A3 前端接入）：知识库可选 + SSE 流式渲染结构化建议 */
@@ -54,6 +55,8 @@ const reason = ref('');
 const references = ref<ApprovalReferenceVO[]>([]);
 const latestAdvice = ref<ApprovalAdviceVO | null>(null);
 const errorMsg = ref('');
+/** A4E 受控自动预审结果（null = 未发起；默认关闭时后端不会放行） */
+const autoPassResult = ref<AutoApprovalResultVO | null>(null);
 let controller: AbortController | null = null;
 
 const CONCLUSION_LABEL: Record<string, string> = {
@@ -101,6 +104,7 @@ function resetState(): void {
   references.value = [];
   latestAdvice.value = null;
   errorMsg.value = '';
+  autoPassResult.value = null;
 }
 
 /** 结构化建议上屏（回显与 done 帧共用） */
@@ -133,6 +137,11 @@ function generate(): void {
         if (done.disclaimer) disclaimer.value = done.disclaimer;
         applyAdvice(done);
         phase.value = 'done';
+        // A4E：够格才发起受控自动预审。真正放行与否由后端确定性规则判定，
+        // 且必须走审批人本人的请求（归属闸取自登录上下文，后端无法代填身份）。
+        if (done.autoEligible) {
+          void runAutoPass();
+        }
       },
       onError: (msg) => {
         errorMsg.value = msg;
@@ -141,6 +150,19 @@ function generate(): void {
     },
     controller.signal,
   );
+}
+
+/** 受控自动预审：失败不阻断建议展示（判定原因直接上屏，便于审批人知道为什么没自动通过） */
+async function runAutoPass(): Promise<void> {
+  try {
+    autoPassResult.value = await autoPassApproval(props.taskId);
+  } catch (e) {
+    autoPassResult.value = {
+      taskId: props.taskId,
+      autoPassed: false,
+      reason: (e as Error).message || '自动预审调用失败',
+    };
+  }
 }
 
 function close(): void {
@@ -213,6 +235,33 @@ function close(): void {
           </div>
         </template>
         <div v-else class="advice-no-ref">未检索到相关制度依据</div>
+
+        <!-- A4E 受控自动预审结果（默认关闭；通过后仍给出依据，未通过则说明未命中哪条规则） -->
+        <template v-if="autoPassResult">
+          <ElAlert
+            v-if="autoPassResult.autoPassed"
+            title="已按建议受控自动通过"
+            type="success"
+            :closable="false"
+            show-icon
+            :description="autoPassResult.reason"
+          />
+          <ElAlert
+            v-else
+            title="未自动通过，请人工审批"
+            type="info"
+            :closable="false"
+            show-icon
+            :description="autoPassResult.reason"
+          />
+        </template>
+        <div
+          v-else-if="latestAdvice?.autoPassed"
+          class="advice-time"
+        >
+          本条建议已触发受控自动通过
+        </div>
+
         <div v-if="latestAdvice?.createTime && phase === 'idle'" class="advice-time">
           最近生成于 {{ latestAdvice.createTime }}
         </div>

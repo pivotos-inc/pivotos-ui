@@ -42,6 +42,16 @@ const VECTOR_STORE_OPTIONS: YFormOption[] = [
   { label: 'Qdrant（预留）', value: 'qdrant' },
 ];
 
+/**
+ * 知识库类型选项（A4E / S117 制度类标记）。
+ * 制度类是审批建议「有制度依据」的判定来源，必须显式选择——默认通用，
+ * 避免存量库被默认当成制度依据。
+ */
+const KB_TYPE_OPTIONS: YFormOption[] = [
+  { label: '通用', value: 'general' },
+  { label: '制度类', value: 'policy' },
+];
+
 const statusOptions = computed<YFormOption[]>(() =>
   sys_common_status.value.map((d) => ({ label: d.dictLabel, value: Number(d.dictValue) })),
 );
@@ -54,6 +64,13 @@ const { loading, rows, total, params, load } = useTablePage<KnowledgeBaseVO>({
 const columns: YTableColumn<KnowledgeBaseVO>[] = [
   { type: 'index', label: '#', width: 56, align: 'center' },
   { prop: 'name', label: '知识库名称', minWidth: 160 },
+  {
+    prop: 'kbType',
+    label: '类型',
+    width: 100,
+    align: 'center',
+    formatter: (row) => KB_TYPE_OPTIONS.find((o) => o.value === row.kbType)?.label ?? '通用',
+  },
   { prop: 'description', label: '描述', minWidth: 180, showOverflowTooltip: true },
   {
     prop: 'vectorStoreType',
@@ -87,6 +104,14 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
     component: 'input',
     placeholder: '请输入知识库名称',
     rules: [{ required: true, message: '知识库名称不能为空', trigger: 'blur' }],
+  },
+  {
+    field: 'kbType',
+    label: '知识库类型',
+    component: 'select',
+    placeholder: '请选择知识库类型',
+    options: KB_TYPE_OPTIONS,
+    rules: [{ required: true, message: '知识库类型不能为空', trigger: 'change' }],
   },
   { field: 'description', label: '描述', component: 'textarea', placeholder: '请输入描述' },
   {
@@ -155,6 +180,8 @@ const kbFormSchemas = computed<YFormSchema[]>(() => [
 function openKbAdd(): void {
   Object.keys(kbForm).forEach((k) => delete kbForm[k]);
   Object.assign(kbForm, {
+    // A4E：制度类必须显式选，默认通用——存量库不会被默认当成制度依据
+    kbType: 'general',
     vectorStoreType: 'milvus',
     chunkSize: 500,
     chunkOverlap: 100,
@@ -172,6 +199,7 @@ async function openKbEdit(row: KnowledgeBaseVO): Promise<void> {
   Object.assign(kbForm, {
     id: detail.id,
     name: detail.name,
+    kbType: detail.kbType || 'general',
     description: detail.description,
     vectorStoreType: detail.vectorStoreType,
     embeddingModel: detail.embeddingModel,
@@ -193,6 +221,7 @@ async function handleKbSubmit(): Promise<void> {
     const body: KnowledgeBaseSaveBody = {
       id: (kbForm.id as string) || undefined,
       name: kbForm.name as string,
+      kbType: (kbForm.kbType as string) || 'general',
       description: (kbForm.description as string) || undefined,
       vectorStoreType: kbForm.vectorStoreType as KnowledgeBaseSaveBody['vectorStoreType'],
       embeddingModel: (kbForm.embeddingModel as string) || undefined,
