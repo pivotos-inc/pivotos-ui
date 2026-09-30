@@ -77,6 +77,8 @@ export interface KbSimpleOptionVO {
   name: string;
   /** 查询改写开关（S68） */
   queryRewrite?: boolean;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117） */
+  kbType?: string;
 }
 
 /* ================= AI 供应商配置 ================= */
@@ -292,6 +294,8 @@ export type KbVectorStoreType = 'simple' | 'milvus' | 'pgvector' | 'qdrant';
 export interface KnowledgeBaseVO {
   id: string;
   name: string;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117 制度类标记） */
+  kbType?: string;
   description?: string;
   vectorStoreType: KbVectorStoreType;
   embeddingModel?: string;
@@ -312,6 +316,8 @@ export interface KnowledgeBaseVO {
 export interface KnowledgeBaseSaveBody {
   id?: string;
   name: string;
+  /** 知识库类型（policy 制度类 / general 通用；A4E / S117） */
+  kbType?: string;
   description?: string;
   vectorStoreType: KbVectorStoreType;
   embeddingModel?: string;
@@ -597,6 +603,25 @@ export interface ApprovalAdviceVO {
   /** 检索所用知识库 ID（无制度依据为空） */
   kbId?: string;
   createTime?: string;
+  /** 是否受控自动通过（A4E / S117） */
+  autoPassed?: boolean;
+  /** 自动预审判定原因（未启用 / 未命中规则 / 命中明细） */
+  autoDecisionReason?: string;
+  /** 是否具备受控自动通过资格（不等于已通过；供前端决定是否发起自动预审） */
+  autoEligible?: boolean;
+}
+
+/** 受控自动预审结果（A4E / S117，对齐 AutoApprovalResultVO） */
+export interface AutoApprovalResultVO {
+  taskId: string;
+  /** 是否已自动通过 */
+  autoPassed: boolean;
+  /** 判定原因（未通过时说明哪条规则不满足） */
+  reason?: string;
+  /** 规则命中明细 */
+  ruleHits?: string[];
+  /** 依据的建议记录 ID */
+  adviceId?: string;
 }
 
 /** 审批建议生成请求（对齐 ApprovalAdviceRequest；kbId 空 = 后端默认库策略） */
@@ -622,6 +647,8 @@ export interface ApprovalAdviceStreamDone {
   references?: ApprovalReferenceVO[];
   /** 免责声明：AI 建议仅供参考，审批责任仍归审批人 */
   disclaimer?: string;
+  /** 是否具备受控自动通过资格（A4E / S117；够格才发起自动预审，不等于已通过） */
+  autoEligible?: boolean;
 }
 
 /* ================= AI 工具管理（S98 A2 注册 / S99 管理页） ================= */
@@ -688,4 +715,78 @@ export interface AiToolInvokeQuery extends PageQuery {
   invokeStatus?: Emptyable<string>;
   /** 调用人 ID */
   userId?: string;
+}
+
+// ============================================================
+// A5-1 工具多步编排（S116）
+// ============================================================
+
+/** 编排计划单步（对齐 AiToolPlanVO.PlanStepVO） */
+export interface AiToolPlanStepVO {
+  /** 步骤序号（从 1 起） */
+  no: number;
+  /** 工具名 */
+  tool: string;
+  /** 入参 JSON 原文（含引用占位符） */
+  args?: string;
+  /** 规划理由 */
+  reason?: string;
+  /** 是否写操作（写操作需二次确认） */
+  write?: boolean;
+  /** 执行输出（未执行为空） */
+  output?: string;
+  /** 实际尝试次数（A5-2；未执行为 0，写步骤恒 ≤ 1） */
+  attemptCount?: number;
+  /** 步骤终态：success / failed / need_confirm / skipped（skipped = 熔断后未发起调用） */
+  stepStatus?: string;
+  /** 本步耗时（毫秒，含重试） */
+  stepCostMs?: number | string;
+  /** 失败原因（终态失败信号原文） */
+  error?: string;
+}
+
+/** 编排计划视图（对齐 AiToolPlanVO） */
+export interface AiToolPlanVO {
+  id: string;
+  /** 用户原始意图 */
+  intent?: string;
+  /** 计划目标 */
+  goal?: string;
+  /** 步骤数 */
+  stepCount?: number;
+  /** 状态：draft 待确认 / success 已完成 / need_confirm 等待写操作确认 / failed 中断 */
+  status?: string;
+  /** 已成功执行步骤数 */
+  executedSteps?: number;
+  /** 被写操作确认闸拦下的步骤序号（0 未拦停） */
+  blockedStep?: number;
+  /** 结果摘要 / 失败原因 */
+  resultSummary?: string;
+  /** 总耗时（毫秒） */
+  costMs?: number | string;
+  /** 本次执行累计重试次数（A5-2；写步骤恒为 0） */
+  retryCount?: number;
+  /** 是否触发熔断（A5-2：重试预算耗尽，后续步骤未再发起调用） */
+  circuitBroken?: boolean;
+  /** 失败原因（终态失败信号原文） */
+  failReason?: string;
+  /** 能力缺口说明（计划为空时） */
+  unmapped?: string;
+  /** 计划校验结论（非空 = 不允许执行） */
+  errors?: string[];
+  steps?: AiToolPlanStepVO[];
+  createTime?: string;
+}
+
+/** 编排记录分页查询（对齐 AiToolPlanQuery） */
+export interface AiToolPlanQuery extends PageQuery {
+  intent?: string;
+  status?: Emptyable<string>;
+}
+
+/** 编排执行入参（对齐 AiOrchestratorRunRequest） */
+export interface AiOrchestratorRunRequest {
+  intent: string;
+  /** 是否已获得用户对写操作的二次确认（false 时停在写步骤前） */
+  confirmed?: boolean;
 }
