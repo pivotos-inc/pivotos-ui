@@ -1,6 +1,6 @@
 # PivotOS UI（pivotos-ui）
 
-> 枢磐 PivotOS「一码三端」企业管理平台 —— PC 管理端（pnpm workspace Monorepo）
+> 筱筱框架（PivotOS）「一码三端」企业管理平台 —— PC 管理端（pnpm workspace Monorepo）
 >
 > 📖 在线文档：[pivotos-doc.293242.com](https://pivotos-doc.293242.com) ｜ 🖥️ 在线演示：[pivotos-pc.293242.com](https://pivotos-pc.293242.com)（账号 `admin / admin123`）
 
