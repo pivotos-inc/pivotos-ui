@@ -230,6 +230,106 @@ export interface EsInfoVO {
   collectedAt: string | null;
 }
 
+/* ==================== S130 通用数据监控（DB / ES / Redis） ==================== */
+
+/** 数据监控组件类型（后端 DataSourceType） */
+export type DataComponentType =
+  | 'mysql'
+  | 'es'
+  | 'redis'
+  | 'neo4j'
+  | 'clickhouse'
+  | 'mongodb'
+  | 'kafka'
+  | 'mq';
+
+/** 组件能力集（后端 Capability） */
+export type DataCapability = 'LIST_SCHEMAS' | 'LIST_TABLES' | 'PREVIEW' | 'QUERY' | 'STATS';
+
+/** 组件快照：不可用时 available=false + reason 有值（后端绝不抛异常、绝不 500） */
+export interface DataComponentSnapshot {
+  type: DataComponentType;
+  name: string;
+  available: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+  detail: string | null;
+  /** 后端回传 Set<Capability>，序列化为字符串数组 */
+  capabilities: DataCapability[] | null;
+}
+
+/** 库 / 索引分组 / Redis db */
+export interface DataSchemaItem {
+  name: string;
+  label: string;
+  itemCount: string | number;
+}
+
+/** 表 / 索引 / Redis key */
+export interface DataTableItem {
+  schema: string;
+  name: string;
+  /** table / view / index / string / hash / list / set / zset */
+  type: string;
+  comment: string;
+  rowCount: string | number;
+  ttl: string | number;
+}
+
+/** 结果列 */
+export interface DataColumnItem {
+  name: string;
+  type: string | null;
+  /** 命中敏感列名规则，取值已脱敏 */
+  masked: boolean;
+}
+
+/**
+ * 统一查询结果。
+ * 降级口径：available=false 时 rows 为空、reason 有值，接口仍返回 code=0。
+ */
+export interface DataQueryResult {
+  columns: DataColumnItem[];
+  rows: Array<Record<string, unknown>>;
+  /** 总条数；-1 表示未知 */
+  total: string | number;
+  truncated: boolean;
+  durationMs: string | number;
+  /** 透明化提示：已注入 LIMIT / 已按租户改写 / 已脱敏 N 个单元格 */
+  warnings: string[];
+  available: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+}
+
+/** 预览请求：内部固定语句，不接受用户语句 */
+export interface DataPreviewRequest {
+  component: string;
+  schema: string;
+  table: string;
+  pageNum?: number;
+  pageSize?: number;
+}
+
+/** 自由查询请求（高危，需 monitor:data:query） */
+export interface DataQueryRequest {
+  component: string;
+  schema?: string;
+  /** 自由语句（MySQL 为 SQL；ES 为 DSL；Redis 不支持） */
+  statement: string;
+  maxRows?: number;
+}
+
+/** 表 / 索引 / key 统计 */
+export interface DataStatsItem {
+  schema: string;
+  table: string;
+  rowCount: string | number;
+  sizeBytes: string | number;
+  engine: string | null;
+  extra: Record<string, unknown> | null;
+}
+
 /** 缓存监控快照 */
 export interface CacheInfoVO {
   redisVersion: string;
