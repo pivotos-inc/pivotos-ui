@@ -33,3 +33,22 @@ export type { ImportResult, ImportError, ImportStreamRow, ImportStreamDone, Impo
 
 // Cron 表达式生成器（6 字段 Tab + 预设 + 实时预览）
 export { default as CronPicker } from './CronPicker/CronPicker.vue';
+
+// 导入预览（FE-3）：本地读 Excel → 预览 + 标红去重 → 确认后落库
+export { default as YImportPreview } from './YImportPreview/YImportPreview.vue';
+export type {
+  HeaderMapping,
+  ImportPreviewColumn,
+  ImportPreviewError,
+  ImportPreviewRow,
+  ImportPreviewSummary,
+} from './YImportPreview/types';
+export {
+  buildPreviewRows,
+  buildWorkbook,
+  downloadTemplate,
+  mapHeaders,
+  readSheet,
+  rowsToFile,
+  summarize,
+} from './YImportPreview/preview';
