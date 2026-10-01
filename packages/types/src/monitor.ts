@@ -168,6 +168,68 @@ export interface ServerInfoVO {
   }>;
 }
 
+/** ES 节点明细（对齐 SearchHealthSnapshot.NodeInfo） */
+export interface EsNodeInfo {
+  name: string | null;
+  ip: string | null;
+  version: string | null;
+  /** ES 7.x 为短码（di/mdi），8.x/9.x 为长码（cdfhilmrstw）——原样展示不解析 */
+  roles: string | null;
+  master: boolean;
+  heapPercent: number;
+  ramPercent: number;
+  cpu: number;
+  load1m: number;
+}
+
+/** ES 索引明细（对齐 SearchHealthSnapshot.IndexInfo） */
+export interface EsIndexInfo {
+  index: string;
+  health: string | null;
+  status: string | null;
+  docsCount: string | number;
+  storeSizeBytes: string | number;
+  storeSizeHuman: string | null;
+  pri: number;
+  rep: number;
+}
+
+/**
+ * ES 监控快照（对齐 SearchHealthSnapshot / monitor 侧 EsInfoVO）。
+ * 降级口径：simple / 未启用 / 连接不可达时 available=false + reason 文案，接口仍返回 code=0。
+ */
+export interface EsInfoVO {
+  available: boolean;
+  /** 当前生效实现：simple / es-java / easy-es */
+  implementation: string | null;
+  /** 配置值 pivotos.search.type */
+  configuredType: string | null;
+  /** 发生过回落（配置的实现未生效，实际走 simple） */
+  fallback: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+  serverVersion: string | null;
+  clusterName: string | null;
+  /** green / yellow / red */
+  status: string | null;
+  nodeCount: number;
+  indexCount: number;
+  docCount: string | number;
+  storeSizeBytes: string | number;
+  storeSizeHuman: string | null;
+  jvmHeapUsedBytes: string | number;
+  jvmHeapMaxBytes: string | number;
+  jvmHeapUsedPercent: number;
+  shardsActive: number;
+  shardsActivePrimary: number;
+  shardsRelocating: number;
+  shardsInitializing: number;
+  shardsUnassigned: number;
+  nodes: EsNodeInfo[];
+  indices: EsIndexInfo[];
+  collectedAt: string | null;
+}
+
 /** 缓存监控快照 */
 export interface CacheInfoVO {
   redisVersion: string;
