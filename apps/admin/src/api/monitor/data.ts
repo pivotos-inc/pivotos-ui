@@ -23,8 +23,20 @@ export function getDataSchemas(component: string): Promise<DataSchemaItem[]> {
   return request.get<unknown, DataSchemaItem[]>('/monitor/data/schemas', { params: { component } });
 }
 
-export function getDataTables(component: string, schema?: string): Promise<DataTableItem[]> {
-  return request.get<unknown, DataTableItem[]>('/monitor/data/tables', { params: { component, schema } });
+/**
+ * 列举表 / 索引 / key。
+ *
+ * pattern 只对 Redis 生效（key 空间可能极大，必须支持用 pattern 收窄，见后端三重保护）；
+ * MySQL / ES 会忽略该参数。
+ */
+export function getDataTables(
+  component: string,
+  schema?: string,
+  pattern?: string,
+): Promise<DataTableItem[]> {
+  return request.get<unknown, DataTableItem[]>('/monitor/data/tables', {
+    params: { component, schema, pattern },
+  });
 }
 
 export function getDataStats(
