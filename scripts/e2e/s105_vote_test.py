@@ -16,7 +16,15 @@ S105 L1 清偿：票签（nodeRatio=50）端到端实测。
   - 第 1 签驳回（驳回率 33.3% ≤ 50%）→ 不推进
   - 第 2 签驳回（驳回率 66.7% > 50%）→ 沿 REJECT 边回退「提交申请」，实例 flowStatus=9
 
-前置：8080 dev 运行中（库 pivotos_dev）；admin/admin123；vote002/vote003（Admin@123456，S105 经 admin API 创建）。
+前置：8080 dev 运行中（库 pivotos_dev）；admin/admin123；vote002/vote003（Admin@123456）。
+
+**fixture 自愈（S129 补）**：S129 重建 dev 库做 Flyway 全量重放后，「vote002/vote003 用户」与
+「bpmn_s105_vote 定义」这两个**历史累积 fixture 一并清零**，脚本直接跑会在 STEP1 登录处即失败
+（`2001 账号或密码错误`）。按 S124 确立的 fixture 自愈口径，改为**脚本自建、幂等复用**：
+  ① 用户：登录试探 → 失败则经 admin 的 `POST /system/user` 自建（角色取首个可用角色）；
+  ② 定义：`GET /workflow/definition/page` 查 `flowCode` → 无则 `POST /warm-flow/save-json`
+     建「开始→提交申请→票签审批(nodeRatio=50)→结束」并发布。
+谁创建谁可用，不删（该定义与两个用户是长期 fixture，清场后重建一次即可长期复用）。
 """
 import json
 import sys
@@ -27,8 +35,8 @@ import requests
 BASE = "http://localhost:8080"
 FLOW_CODE = "bpmn_s105_vote"
 RUN_TS = str(int(time.time()))[-6:]
-VOTE002_ID = "2104137859511676929"
-VOTE003_ID = "2104138160121638914"
+VOTE_USERS = ("vote002", "vote003")
+VOTE_PWD = "Admin@123456"
 
 
 def log(tag, msg):
@@ -41,6 +49,99 @@ def login(username, password):
     body = r.json()
     assert r.status_code == 200 and body.get("code") == 0, f"{username} 登录失败: {body}"
     return {"Authorization": body["data"]["token"]}
+
+
+def try_login(username, password):
+    """登录试探：成功返回 header，失败返回 None（不抛，供 fixture 自愈判定）。"""
+    r = requests.post(f"{BASE}/system/auth/login",
+                      json={"username": username, "password": password}, timeout=60)
+    body = r.json()
+    if r.status_code == 200 and body.get("code") == 0:
+        return {"Authorization": body["data"]["token"]}
+    return None
+
+
+def ensure_vote_users(hdr_admin):
+    """dev 库清场后 vote002/vote003 丢失 → 经 admin API 自建（幂等）。"""
+    for u in VOTE_USERS:
+        if try_login(u, VOTE_PWD):
+            log("FIXTURE", f"用户 {u} 已存在，复用")
+            continue
+        roles = requests.get(f"{BASE}/system/role/all", headers=hdr_admin, timeout=30).json()
+        role_list = roles.get("data") or []
+        role_id = str((role_list[0] or {}).get("id")) if role_list else ""
+        body = {"username": u, "nickname": u, "password": VOTE_PWD, "status": 0,
+                "deptId": "1", "roleIds": [role_id] if role_id else []}
+        r = requests.post(f"{BASE}/system/user", json=body, headers=hdr_admin, timeout=30)
+        rb = r.json()
+        assert rb.get("code") == 0, f"自建用户 {u} 失败: {json.dumps(rb, ensure_ascii=False)[:300]}"
+        assert try_login(u, VOTE_PWD), f"自建用户 {u} 后仍无法登录"
+        log("FIXTURE", f"用户 {u} 已自建（roleId={role_id or '无'}）")
+
+
+def find_user_id(hdr_admin, username):
+    """按 username 查用户 id（permissionFlag 收的是**用户 ID**，不是登录名）。"""
+    r = requests.get(f"{BASE}/system/user/page", headers=hdr_admin, timeout=30,
+                     params={"pageNum": 1, "pageSize": 50, "username": username})
+    for u in (r.json().get("data") or {}).get("list", []):
+        if u.get("username") == username:
+            return str(u["id"])
+    return None
+
+
+def vote_defjson(perm_ids):
+    """开始 → 提交申请 → 票签审批（三人 + nodeRatio=50，带 REJECT 驳回边）→ 结束。"""
+    def node(code, name, ntype, perm=None, ratio=None, coord="0,0", skips=()):
+        n = {"nodeType": ntype, "nodeCode": code, "nodeName": name,
+             "nodeRatio": ratio or "0.000", "coordinate": coord,
+             "skipList": [dict(s) for s in skips]}
+        if perm is not None:
+            n["permissionFlag"] = perm
+        return n
+
+    def skip(now, nxt, name, stype="PASS"):
+        return {"nowNodeCode": now, "nextNodeCode": nxt, "skipName": name, "skipType": stype}
+
+    return {
+        "flowCode": FLOW_CODE,
+        "flowName": "S105票签50（S129 自愈重建）",
+        "modelValue": "CLASSICS",
+        "nodeList": [
+            node("start", "开始", 0, coord="80,240", skips=[skip("start", "apply", "提交")]),
+            node("apply", "提交申请", 1, perm="1", coord="240,240",
+                 skips=[skip("apply", "vote", "提交")]),
+            node("vote", "票签审批", 1, perm=perm_ids, ratio="50.000", coord="400,240",
+                 skips=[skip("vote", "end", "同意"), skip("vote", "apply", "驳回", "REJECT")]),
+            node("end", "结束", 2, coord="560,240"),
+        ],
+    }
+
+
+def ensure_vote_definition(hdr_admin):
+    """dev 库清场后 bpmn_s105_vote 定义丢失 → save-json 自建并发布（幂等）。"""
+    r = requests.get(f"{BASE}/workflow/definition/page", headers=hdr_admin, timeout=30,
+                     params={"pageNum": 1, "pageSize": 50, "flowCode": FLOW_CODE})
+    defs = [d for d in (r.json().get("data") or {}).get("list", []) if d.get("isPublish") != 9]
+    if defs:
+        log("FIXTURE", f"定义 {FLOW_CODE} 已存在，复用 id={defs[0]['id']}")
+        return
+    admin_id = find_user_id(hdr_admin, "admin")
+    ids = [admin_id] + [find_user_id(hdr_admin, u) for u in VOTE_USERS]
+    assert all(ids), f"取不到票签三人的用户 id：{ids}"
+    perm_ids = "@@".join(ids)
+    r = requests.post(f"{BASE}/warm-flow/save-json", headers={**hdr_admin, "onlyNodeSkip": "false"},
+                      json=vote_defjson(perm_ids), timeout=30)
+    rb = r.json()
+    assert rb.get("code") in (0, 200), f"save-json 失败: {json.dumps(rb, ensure_ascii=False)[:300]}"
+    r = requests.get(f"{BASE}/workflow/definition/page", headers=hdr_admin, timeout=30,
+                     params={"pageNum": 1, "pageSize": 50, "flowCode": FLOW_CODE})
+    defs = [d for d in (r.json().get("data") or {}).get("list", []) if d.get("isPublish") != 9]
+    assert defs, "save-json 后未查到定义"
+    def_id = max(defs, key=lambda d: int(d["id"]))["id"]
+    rb = requests.put(f"{BASE}/workflow/definition/{def_id}/publish",
+                      headers=hdr_admin, timeout=30).json()
+    assert rb.get("code") == 0, f"发布失败: {json.dumps(rb, ensure_ascii=False)[:200]}"
+    log("FIXTURE", f"定义 {FLOW_CODE} 已自建并发布 id={def_id}")
 
 
 def pending_task(hdr, biz, node_name=None):
@@ -78,8 +179,10 @@ def start_instance(hdr, biz):
 def main():
     log("STEP1", "登录 admin / vote002 / vote003 ...")
     hdr_admin = login("admin", "admin123")
-    hdr_002 = login("vote002", "Admin@123456")
-    hdr_003 = login("vote003", "Admin@123456")
+    ensure_vote_users(hdr_admin)          # fixture 自愈①：清场后用户丢失 → 自建
+    ensure_vote_definition(hdr_admin)     # fixture 自愈②：清场后定义丢失 → 自建并发布
+    hdr_002 = login("vote002", VOTE_PWD)
+    hdr_003 = login("vote003", VOTE_PWD)
 
     # ---------- 场景 A：票签通过渐进 ----------
     biz_a = f"S105票签通过-{RUN_TS}"
