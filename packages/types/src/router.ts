@@ -8,7 +8,7 @@ export interface RouterMeta {
 export interface RouterVO {
   name: string;
   path: string;
-  /** 组件路径，目录为 Layout */
+  /** 组件路径：顶层目录为 Layout；非顶层目录为空串（纯路由容器）；菜单为 views 下相对路径 */
   component: string;
   hidden?: boolean;
   meta: RouterMeta;

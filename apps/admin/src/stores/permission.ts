@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import type { RouterVO } from '@pivotos/types';
 import { getRouters } from '@/api/system/router';
 import router, { Layout } from '@/router';
+import RouteView from '@/layout/RouteView.vue';
 
 /** views 组件映射表（构建期静态收集，component 字符串 → 异步组件） */
 const viewModules = import.meta.glob('../views/**/*.vue');
@@ -13,12 +14,23 @@ function loadView(component: string) {
   return loader ?? viewModules['../views/error/NotFound.vue'];
 }
 
-/** RouterVO 树 → vue-router 记录（目录挂 Layout，菜单挂 views 组件） */
+/**
+ * 目录节点组件：顶层目录（component = 'Layout'）套布局框架；
+ * 非顶层目录（后端下发空串，S131）只做纯路由容器，避免 Layout 套 Layout
+ * 导致页面里再渲染一整套侧边栏/顶栏/标签页。
+ */
+function pickComponent(routerVO: RouterVO) {
+  if (routerVO.component === 'Layout') return Layout;
+  if (!routerVO.component) return RouteView;
+  return loadView(routerVO.component);
+}
+
+/** RouterVO 树 → vue-router 记录（目录挂 Layout/RouteView，菜单挂 views 组件） */
 function transform(routerVO: RouterVO): RouteRecordRaw {
   const record = {
     path: routerVO.path,
     name: routerVO.name || undefined,
-    component: routerVO.component === 'Layout' ? Layout : loadView(routerVO.component),
+    component: pickComponent(routerVO),
     meta: {
       title: routerVO.meta?.title,
       icon: routerVO.meta?.icon,
