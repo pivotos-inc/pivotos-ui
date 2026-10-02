@@ -168,6 +168,168 @@ export interface ServerInfoVO {
   }>;
 }
 
+/** ES 节点明细（对齐 SearchHealthSnapshot.NodeInfo） */
+export interface EsNodeInfo {
+  name: string | null;
+  ip: string | null;
+  version: string | null;
+  /** ES 7.x 为短码（di/mdi），8.x/9.x 为长码（cdfhilmrstw）——原样展示不解析 */
+  roles: string | null;
+  master: boolean;
+  heapPercent: number;
+  ramPercent: number;
+  cpu: number;
+  load1m: number;
+}
+
+/** ES 索引明细（对齐 SearchHealthSnapshot.IndexInfo） */
+export interface EsIndexInfo {
+  index: string;
+  health: string | null;
+  status: string | null;
+  docsCount: string | number;
+  storeSizeBytes: string | number;
+  storeSizeHuman: string | null;
+  pri: number;
+  rep: number;
+}
+
+/**
+ * ES 监控快照（对齐 SearchHealthSnapshot / monitor 侧 EsInfoVO）。
+ * 降级口径：simple / 未启用 / 连接不可达时 available=false + reason 文案，接口仍返回 code=0。
+ */
+export interface EsInfoVO {
+  available: boolean;
+  /** 当前生效实现：simple / es-java / easy-es */
+  implementation: string | null;
+  /** 配置值 pivotos.search.type */
+  configuredType: string | null;
+  /** 发生过回落（配置的实现未生效，实际走 simple） */
+  fallback: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+  serverVersion: string | null;
+  clusterName: string | null;
+  /** green / yellow / red */
+  status: string | null;
+  nodeCount: number;
+  indexCount: number;
+  docCount: string | number;
+  storeSizeBytes: string | number;
+  storeSizeHuman: string | null;
+  jvmHeapUsedBytes: string | number;
+  jvmHeapMaxBytes: string | number;
+  jvmHeapUsedPercent: number;
+  shardsActive: number;
+  shardsActivePrimary: number;
+  shardsRelocating: number;
+  shardsInitializing: number;
+  shardsUnassigned: number;
+  nodes: EsNodeInfo[];
+  indices: EsIndexInfo[];
+  collectedAt: string | null;
+}
+
+/* ==================== S130 通用数据监控（DB / ES / Redis） ==================== */
+
+/** 数据监控组件类型（后端 DataSourceType） */
+export type DataComponentType =
+  | 'mysql'
+  | 'es'
+  | 'redis'
+  | 'neo4j'
+  | 'clickhouse'
+  | 'mongodb'
+  | 'kafka'
+  | 'mq';
+
+/** 组件能力集（后端 Capability） */
+export type DataCapability = 'LIST_SCHEMAS' | 'LIST_TABLES' | 'PREVIEW' | 'QUERY' | 'STATS';
+
+/** 组件快照：不可用时 available=false + reason 有值（后端绝不抛异常、绝不 500） */
+export interface DataComponentSnapshot {
+  type: DataComponentType;
+  name: string;
+  available: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+  detail: string | null;
+  /** 后端回传 Set<Capability>，序列化为字符串数组 */
+  capabilities: DataCapability[] | null;
+}
+
+/** 库 / 索引分组 / Redis db */
+export interface DataSchemaItem {
+  name: string;
+  label: string;
+  itemCount: string | number;
+}
+
+/** 表 / 索引 / Redis key */
+export interface DataTableItem {
+  schema: string;
+  name: string;
+  /** table / view / index / string / hash / list / set / zset */
+  type: string;
+  comment: string;
+  rowCount: string | number;
+  ttl: string | number;
+}
+
+/** 结果列 */
+export interface DataColumnItem {
+  name: string;
+  type: string | null;
+  /** 命中敏感列名规则，取值已脱敏 */
+  masked: boolean;
+}
+
+/**
+ * 统一查询结果。
+ * 降级口径：available=false 时 rows 为空、reason 有值，接口仍返回 code=0。
+ */
+export interface DataQueryResult {
+  columns: DataColumnItem[];
+  rows: Array<Record<string, unknown>>;
+  /** 总条数；-1 表示未知 */
+  total: string | number;
+  truncated: boolean;
+  durationMs: string | number;
+  /** 透明化提示：已注入 LIMIT / 已按租户改写 / 已脱敏 N 个单元格 */
+  warnings: string[];
+  available: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+}
+
+/** 预览请求：内部固定语句，不接受用户语句 */
+export interface DataPreviewRequest {
+  component: string;
+  schema: string;
+  table: string;
+  pageNum?: number;
+  pageSize?: number;
+}
+
+/** 自由查询请求（高危，需 monitor:data:query） */
+export interface DataQueryRequest {
+  component: string;
+  schema?: string;
+  /** 自由语句（MySQL 为 SQL；ES 为 DSL；Redis 不支持） */
+  statement: string;
+  maxRows?: number;
+}
+
+/** 表 / 索引 / key 统计 */
+export interface DataStatsItem {
+  schema: string;
+  table: string;
+  rowCount: string | number;
+  sizeBytes: string | number;
+  engine: string | null;
+  extra: Record<string, unknown> | null;
+}
+
 /** 缓存监控快照 */
 export interface CacheInfoVO {
   redisVersion: string;

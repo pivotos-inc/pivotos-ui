@@ -1,6 +1,6 @@
 {
   "name": "pivotos-ui",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.0",
@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "dev": "pnpm --filter @pivotos/admin dev",
-    "build": "pnpm --filter @pivotos/admin build"
+    "build": "pnpm --filter @pivotos/admin build",
+    "test:logic": "node scripts/fe_comp_logic_test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

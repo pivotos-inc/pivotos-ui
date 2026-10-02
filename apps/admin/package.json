@@ -1,6 +1,6 @@
 {
   "name": "@pivotos/admin",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,6 +24,7 @@
     "element-plus": "^2.10.0",
     "markdown-it": "^15.0.0",
     "pinia": "^3.0.0",
+    "sql-formatter": "^15.6.9",
     "vue": "^3.5.0",
     "vue-i18n": "^11.0.0",
     "vue-router": "^4.5.0"

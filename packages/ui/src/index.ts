@@ -13,6 +13,20 @@ export type { YTableColumn } from './components/YTable/types';
 export { default as YForm } from './components/YForm/YForm.vue';
 export type { YFormComponentType, YFormOption, YFormSchema } from './components/YForm/types';
 
+// 动态表单（JSON Schema 驱动，FE-2）
+export { default as YSchemaForm } from './components/YSchemaForm/YSchemaForm.vue';
+export type {
+  JsonSchemaField,
+  JsonSchemaFieldType,
+  JsonSchemaFormat,
+  JsonSchemaObject,
+  JsonSchemaOption,
+  JsonSchemaWidget,
+  SchemaUploadResult,
+} from './components/YSchemaForm/types';
+/** 推导函数是纯函数，导出以便单测与上层复用（如「校验同一份 schema」的服务端校验对齐） */
+export { applyDefaults, buildRules, resolveWidget } from './components/YSchemaForm/schema';
+
 // 弹窗
 export { default as YDialog } from './components/YDialog/YDialog.vue';
 
