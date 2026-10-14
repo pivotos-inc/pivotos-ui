@@ -134,6 +134,13 @@ export interface AiProviderSaveBody {
   code: string;
   baseUrl: string;
   defaultModel?: string;
+  /**
+   * 对话模型池（英文逗号分隔，如 qwen3.8-flash,qwen3.7-flash）。
+   * V3.2-D：百炼免费额度按模型独立发放且官方不会自动切模型，配池后由应用层轮询分摊；
+   * 某模型额度耗尽（403 AllocationQuota.FreeTierOnly）自动摘除并切下一个，全耗尽降级到 defaultModel。
+   * 为空则只用 defaultModel。池内模型应能力相近，否则输出质量会抖。
+   */
+  modelPool?: string;
   /** 向量化模型名（空则回退 spring.ai.openai.embedding.options.model 静态配置） */
   embeddingModel?: string;
   /** 重排模型名（如 qwen3-rerank，空则不启用重排，S65） */
